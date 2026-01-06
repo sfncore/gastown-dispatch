@@ -1,3 +1,57 @@
+# =============================================================================
+# AI ARTIFACTS - NEVER COMMIT
+# =============================================================================
+# All AI-generated clutter goes in artifacts/ - the entire folder is ignored
+artifacts/
+
+# =============================================================================
+# AI TOOL METADATA DIRECTORIES
+# =============================================================================
+# Claude Code
+.claude/
+
+# OpenCode
+.opencode/
+
+# FactoryAI / Droid
+.factoryai/
+.droid/
+
+# Amp
+.amp/
+
+# Gas Town
+.gt/
+
+# Generic AI agent directories
+.agents/
+.llm/
+.chat/
+
+# bv (beads viewer) local config and caches
+.bv/
+
+# =============================================================================
+# AI CLUTTER FILE PATTERNS
+# =============================================================================
+# Logs and traces
+*.log
+*.trace
+*.dump
+
+# Patches and diffs (AI-generated)
+*.patch
+*.diff
+
+# Prompts and transcripts
+*.prompt
+*transcript*
+*session*
+*conversation*
+
+# =============================================================================
+# STANDARD PROJECT IGNORES
+# =============================================================================
 # Dependencies
 node_modules/
 
@@ -17,8 +71,7 @@ build/
 .env.local
 .env.*.local
 
-# Logs
-*.log
+# Standard logs (npm/yarn)
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -34,5 +87,9 @@ coverage/
 # Misc
 *.tsbuildinfo
 
+# =============================================================================
+# PROJECT-SPECIFIC
+# =============================================================================
 # Keep gastown as reference but don't include in our commits
-# (it's a separate repo)
+# (it's a separate repo with its own .git)
+gastown/

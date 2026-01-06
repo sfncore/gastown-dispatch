@@ -132,6 +132,43 @@ npm run build     # Production build
 | **Convoy** | Batch of tracked work across projects |
 | **Beads** | Git-backed issue/task tracker |
 
+## AI Artifact Management
+
+This project uses a dedicated `artifacts/` directory to keep AI-generated clutter out of git history.
+
+### Quick Start
+
+```bash
+# Enable commit blocking
+git config core.hooksPath githooks
+
+# Clean up discovered clutter
+./scripts/cleanup-ai-artifacts.sh
+```
+
+### What Gets Blocked
+
+- `artifacts/` - All AI outputs live here
+- `.claude/`, `.opencode/`, `.factoryai/`, `.amp/`, `.gt/` - Tool metadata
+- `*.log`, `*.trace`, `*.dump`, `*.patch`, `*.prompt` - Common AI file types
+
+### Structure
+
+```
+artifacts/
+├── ai/          # Generic AI outputs
+├── claude/      # Claude Code artifacts
+├── opencode/    # OpenCode artifacts
+├── factoryai/   # Factory/Droid artifacts
+├── amp/         # Amp artifacts
+├── gt/          # Gas Town artifacts
+├── logs/        # Log files
+├── patches/     # Generated patches
+└── transcripts/ # Conversation logs
+```
+
+See `artifacts/README.md` for details.
+
 ## Implementation Status
 
 - [x] Project structure
