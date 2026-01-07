@@ -71,19 +71,18 @@ class TerminalService {
 	}
 
 	private streamWithCapture(session: TerminalSession): void {
-		// Initial capture of pane content
-		this.captureAndSend(session);
+		// Initial capture with full scrollback history
+		this.captureAndSend(session, true);
 
-		// Stream updates using tmux's capture-pane in a loop
+		// Stream updates - only visible pane (history was sent initially)
 		const streamLoop = () => {
 			if (session.ws.readyState !== WebSocket.OPEN) return;
 
-			// Use tmux wait-for with a pipe for true streaming
 			session.tmuxProc = spawn("bash", [
 				"-c",
 				`while true; do
-					tmux capture-pane -t ${session.pane} -p -e;
-					sleep 0.05;
+					tmux capture-pane -t ${session.pane} -p -e -S - -E -;
+					sleep 0.1;
 				done`,
 			]);
 
@@ -117,14 +116,21 @@ class TerminalService {
 		streamLoop();
 	}
 
-	private captureAndSend(session: TerminalSession): void {
-		const proc = spawn("tmux", [
+	private captureAndSend(session: TerminalSession, withHistory = false): void {
+		const args = [
 			"capture-pane",
 			"-t",
 			session.pane,
 			"-p",
 			"-e", // Include escape sequences for colors
-		]);
+		];
+
+		if (withHistory) {
+			args.push("-S", "-"); // Start from beginning of scrollback
+			args.push("-E", "-"); // End at bottom
+		}
+
+		const proc = spawn("tmux", args);
 
 		let output = "";
 		proc.stdout?.on("data", (data: Buffer) => {

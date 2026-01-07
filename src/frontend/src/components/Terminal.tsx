@@ -92,23 +92,31 @@ export function Terminal({
 			term.write("\x1b[2m── Connected to " + pane + " ──\x1b[0m\r\n\r\n");
 		};
 
+		let isFirstMessage = true;
+
 		ws.onmessage = (event) => {
 			try {
 				const msg = JSON.parse(event.data);
 				if (msg.type === "output") {
-					// Clear and rewrite - use cursor positioning to avoid scroll jump
-					// Save scroll position, clear, write, restore if user was scrolled up
-					const isScrolledUp =
-						term.buffer.active.viewportY < term.buffer.active.baseY;
-					const savedViewport = term.buffer.active.viewportY;
+					if (isFirstMessage) {
+						// First message contains full history - just write it
+						term.write(msg.data);
+						isFirstMessage = false;
+					} else {
+						// Subsequent messages - clear and rewrite visible area
+						// Check if user is scrolled up
+						const isScrolledUp =
+							term.buffer.active.viewportY < term.buffer.active.baseY;
+						const savedViewport = term.buffer.active.viewportY;
 
-					// Move cursor to top-left and clear screen
-					term.write("\x1b[H\x1b[2J");
-					term.write(msg.data);
+						// Clear screen and write new content
+						term.write("\x1b[H\x1b[2J");
+						term.write(msg.data);
 
-					// If user was scrolled up, try to restore position
-					if (isScrolledUp) {
-						term.scrollToLine(savedViewport);
+						// Restore scroll position if user was reading history
+						if (isScrolledUp) {
+							term.scrollToLine(savedViewport);
+						}
 					}
 				}
 			} catch {
