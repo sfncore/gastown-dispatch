@@ -95,9 +95,15 @@ export function Terminal({
 		ws.onmessage = (event) => {
 			try {
 				const msg = JSON.parse(event.data);
-				if (msg.type === "output") {
-					// Clear screen and write pane content
-					term.write("\x1b[H\x1b[2J");
+
+				if (msg.type === "init") {
+					// Full scrollback history - write it all (creates xterm scrollback)
+					term.write(msg.data);
+				} else if (msg.type === "frame") {
+					// Visible pane update - overwrite in-place without destroying scrollback
+					// \x1b[H = cursor to home (top-left of viewport)
+					// \x1b[J = clear from cursor to end of screen (not scrollback!)
+					term.write("\x1b[H\x1b[J");
 					term.write(msg.data);
 				}
 			} catch {

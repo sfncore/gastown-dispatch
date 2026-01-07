@@ -71,18 +71,49 @@ class TerminalService {
 	}
 
 	private streamWithCapture(session: TerminalSession): void {
-		let lastOutput = "";
+		let initialized = false;
+		let lastFrame = "";
 
-		// Poll tmux pane content at regular intervals
-		const poll = () => {
-			if (session.ws.readyState !== WebSocket.OPEN) return;
+		// Step 1: Send full scrollback history ONCE
+		const sendInit = () => {
+			const proc = spawn("tmux", [
+				"capture-pane",
+				"-t",
+				session.pane,
+				"-p",
+				"-e", // Include escape sequences
+				"-S",
+				"-", // From start of scrollback
+				"-E",
+				"-", // To end of scrollback
+			]);
+
+			let output = "";
+			proc.stdout?.on("data", (data: Buffer) => {
+				output += data.toString();
+			});
+
+			proc.on("close", () => {
+				if (session.ws.readyState === WebSocket.OPEN) {
+					session.ws.send(JSON.stringify({ type: "init", data: output }));
+					initialized = true;
+					// Start polling for frames after init
+					startPolling();
+				}
+			});
+		};
+
+		// Step 2: Poll for visible pane updates (frames)
+		const pollFrame = () => {
+			if (session.ws.readyState !== WebSocket.OPEN || !initialized) return;
 
 			const proc = spawn("tmux", [
 				"capture-pane",
 				"-t",
 				session.pane,
 				"-p",
-				"-e", // Include escape sequences for colors
+				"-e", // Include escape sequences
+				// No -S/-E = just visible pane
 			]);
 
 			let output = "";
@@ -92,23 +123,30 @@ class TerminalService {
 
 			proc.on("close", () => {
 				// Only send if content changed
-				if (output !== lastOutput) {
-					lastOutput = output;
+				if (output !== lastFrame) {
+					lastFrame = output;
 					if (session.ws.readyState === WebSocket.OPEN) {
-						session.ws.send(JSON.stringify({ type: "output", data: output }));
+						session.ws.send(JSON.stringify({ type: "frame", data: output }));
 					}
 				}
 			});
 		};
 
-		// Initial capture
-		poll();
+		let intervalId: NodeJS.Timeout | null = null;
 
-		// Start polling interval
-		const intervalId = setInterval(poll, 100);
+		const startPolling = () => {
+			intervalId = setInterval(pollFrame, 100);
+		};
 
-		// Store interval for cleanup
-		session.tmuxProc = { kill: () => clearInterval(intervalId) } as any;
+		// Start with init
+		sendInit();
+
+		// Store cleanup function
+		session.tmuxProc = {
+			kill: () => {
+				if (intervalId) clearInterval(intervalId);
+			},
+		} as any;
 	}
 
 	private sendToTmux(pane: string, keys: string): void {
