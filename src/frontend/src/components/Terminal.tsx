@@ -93,9 +93,20 @@ export function Terminal({
 			try {
 				const msg = JSON.parse(event.data);
 				if (msg.type === "output") {
-					// Reset terminal and write full pane content
-					term.reset();
+					// Clear and rewrite - use cursor positioning to avoid scroll jump
+					// Save scroll position, clear, write, restore if user was scrolled up
+					const isScrolledUp =
+						term.buffer.active.viewportY < term.buffer.active.baseY;
+					const savedViewport = term.buffer.active.viewportY;
+
+					// Move cursor to top-left and clear screen
+					term.write("\x1b[H\x1b[2J");
 					term.write(msg.data);
+
+					// If user was scrolled up, try to restore position
+					if (isScrolledUp) {
+						term.scrollToLine(savedViewport);
+					}
 				}
 			} catch {
 				// Raw data fallback

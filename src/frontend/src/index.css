@@ -12,6 +12,11 @@ body {
   box-sizing: border-box;
 }
 
+/* Hide horizontal scrollbar - content should fit */
+.xterm-viewport {
+  overflow-x: hidden !important;
+}
+
 .xterm-helper-textarea {
   position: absolute !important;
   opacity: 0 !important;
