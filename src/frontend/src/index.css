@@ -6,6 +6,18 @@ body {
   @apply antialiased;
 }
 
+/* xterm.js - let it calculate its own size */
+.xterm {
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.xterm-helper-textarea {
+  position: absolute !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
