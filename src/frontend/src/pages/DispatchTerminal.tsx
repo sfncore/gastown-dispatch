@@ -42,7 +42,7 @@ export default function DispatchTerminal() {
 	const activeRigs = rigs.filter((r) => r.active).length;
 
 	return (
-		<div className="h-screen flex flex-col bg-[#0a0a0f] overflow-hidden">
+		<div className="h-full flex flex-col bg-[#0a0a0f] overflow-hidden">
 			{/* Minimal top bar - Nova's respectful frame */}
 			<div className="flex items-center justify-between px-3 py-1.5 border-b border-zinc-800/30 bg-[#0a0a0f]">
 				{/* Left: Connection status */}

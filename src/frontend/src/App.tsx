@@ -58,7 +58,7 @@ function NavItem({
 
 export default function App() {
 	return (
-		<div className="flex min-h-screen">
+		<div className="flex h-screen overflow-hidden">
 			{/* Sidebar */}
 			<aside className="w-56 bg-gt-surface border-r border-gt-border flex flex-col">
 				<div className="p-4 border-b border-gt-border">
@@ -94,7 +94,7 @@ export default function App() {
 			</aside>
 
 			{/* Main content */}
-			<main className="flex-1 overflow-auto">
+			<main className="flex-1 overflow-hidden">
 				<Routes>
 					<Route path="/" element={<Navigate to="/overview" replace />} />
 					<Route path="/overview" element={<Overview />} />
