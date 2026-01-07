@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Check, AlertTriangle } from "lucide-react";
 import { getStatus, runDoctor } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
 	const queryClient = useQueryClient();
@@ -110,16 +109,40 @@ export default function SettingsPage() {
 				</div>
 
 				{doctorMutation.data && (
-					<div
-						className={cn(
-							"mt-4 p-4 rounded-lg border font-mono text-sm whitespace-pre-wrap",
-							doctorMutation.data.success
-								? "bg-green-900/20 border-green-500"
-								: "bg-red-900/20 border-red-500",
-						)}
-					>
-						{(doctorMutation.data.data as { stdout?: string })?.stdout ||
-							doctorMutation.data.message}
+					<div className="mt-4 p-4 rounded-lg border border-gt-border bg-gt-surface font-mono text-sm">
+						{(() => {
+							const output =
+								(doctorMutation.data.data as { stdout?: string })?.stdout ||
+								doctorMutation.data.message ||
+								"";
+							const lines = output.split("\n");
+							return lines.map((line, i) => {
+								let colorClass = "text-gt-muted";
+								if (line.startsWith("✓") || line.includes("✓")) {
+									colorClass = "text-green-400";
+								} else if (
+									line.startsWith("⚠") ||
+									line.includes("⚠") ||
+									line.toLowerCase().includes("warning")
+								) {
+									colorClass = "text-yellow-400";
+								} else if (
+									line.startsWith("✗") ||
+									line.includes("✗") ||
+									line.startsWith("×") ||
+									line.includes("×") ||
+									line.toLowerCase().includes("error") ||
+									line.toLowerCase().includes("missing")
+								) {
+									colorClass = "text-red-400";
+								}
+								return (
+									<div key={i} className={colorClass}>
+										{line || "\u00A0"}
+									</div>
+								);
+							});
+						})()}
 					</div>
 				)}
 			</section>
