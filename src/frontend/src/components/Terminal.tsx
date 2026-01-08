@@ -9,18 +9,24 @@ interface TerminalProps {
 	pane?: string;
 	className?: string;
 	onConnectionChange?: (connected: boolean) => void;
+	onReady?: (api: TerminalApi) => void;
+}
+
+export interface TerminalApi {
+	paste: (text: string) => void;
 }
 
 export function Terminal({
 	pane = "hq-mayor",
 	className = "",
 	onConnectionChange,
+	onReady,
 }: TerminalProps) {
 	const terminalRef = useRef<HTMLDivElement>(null);
 	const xtermRef = useRef<XTerm | null>(null);
 	const wsRef = useRef<WebSocket | null>(null);
 	const fitAddonRef = useRef<FitAddon | null>(null);
-	const [connected, setConnected] = useState(false);
+	const [_connected, setConnected] = useState(false);
 
 	useEffect(() => {
 		if (!terminalRef.current) return;
@@ -90,6 +96,14 @@ export function Terminal({
 			setConnected(true);
 			onConnectionChange?.(true);
 			term.write("\x1b[2m── Connected to " + pane + " ──\x1b[0m\r\n\r\n");
+			onReady?.({
+				paste: (text: string) => {
+					const socket = wsRef.current;
+					if (socket?.readyState === WebSocket.OPEN) {
+						socket.send(JSON.stringify({ type: "input", data: text }));
+					}
+				},
+			});
 		};
 
 		ws.onmessage = (event) => {

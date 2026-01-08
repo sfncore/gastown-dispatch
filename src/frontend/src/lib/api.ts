@@ -1,6 +1,9 @@
 import type {
 	StatusResponse,
 	Convoy,
+	ConvoyDetail,
+	StrandedConvoy,
+	SynthesisStatus,
 	Bead,
 	ActionResult,
 	BeadFilters,
@@ -42,6 +45,66 @@ export async function getConvoys(
 
 export async function getConvoy(id: string): Promise<Convoy> {
 	return fetchJson<Convoy>(`/convoys/${encodeURIComponent(id)}`);
+}
+
+export async function getConvoyDetail(id: string): Promise<ConvoyDetail> {
+	return fetchJson<ConvoyDetail>(`/convoys/${encodeURIComponent(id)}/detail`);
+}
+
+export async function getStrandedConvoys(): Promise<StrandedConvoy[]> {
+	return fetchJson<StrandedConvoy[]>("/convoys/stranded");
+}
+
+export async function closeConvoy(
+	id: string,
+	reason: string,
+): Promise<ActionResult> {
+	return fetchJson<ActionResult>(`/convoys/${encodeURIComponent(id)}/close`, {
+		method: "POST",
+		body: JSON.stringify({ reason }),
+	});
+}
+
+export async function addIssuesToConvoy(
+	id: string,
+	issues: string[],
+): Promise<ActionResult> {
+	return fetchJson<ActionResult>(`/convoys/${encodeURIComponent(id)}/issues`, {
+		method: "POST",
+		body: JSON.stringify({ issues }),
+	});
+}
+
+export async function removeIssueFromConvoy(
+	convoyId: string,
+	issueId: string,
+): Promise<ActionResult> {
+	return fetchJson<ActionResult>(
+		`/convoys/${encodeURIComponent(convoyId)}/issues/${encodeURIComponent(issueId)}`,
+		{ method: "DELETE" },
+	);
+}
+
+// Synthesis
+export async function getSynthesisStatus(
+	convoyId: string,
+): Promise<SynthesisStatus> {
+	return fetchJson<SynthesisStatus>(
+		`/synthesis/${encodeURIComponent(convoyId)}/status`,
+	);
+}
+
+export async function startSynthesis(
+	convoyId: string,
+	rig?: string,
+): Promise<ActionResult> {
+	return fetchJson<ActionResult>(
+		`/synthesis/${encodeURIComponent(convoyId)}/start`,
+		{
+			method: "POST",
+			body: JSON.stringify({ rig }),
+		},
+	);
 }
 
 export async function createConvoy(data: {

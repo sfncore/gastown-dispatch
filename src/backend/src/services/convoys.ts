@@ -1,83 +1,335 @@
 import { runGtJson, runGt } from "../commands/runner.js";
-import type { Convoy, ConvoyCreateRequest, ActionResult } from "../types/gasown.js";
+import type {
+	Convoy,
+	ConvoyCreateRequest,
+	ActionResult,
+	ConvoyDetail,
+	TrackedIssueDetail,
+	WorkerInfo,
+	StrandedConvoy,
+	SynthesisStatus,
+} from "../types/gasown.js";
 
 export async function listConvoys(
-  status?: "open" | "closed",
-  townRoot?: string
+	status?: "open" | "closed",
+	townRoot?: string,
 ): Promise<Convoy[]> {
-  const args = ["convoy", "list"];
-  if (status) {
-    args.push(`--status=${status}`);
-  }
-  return runGtJson<Convoy[]>(args, { cwd: townRoot });
+	const args = ["convoy", "list"];
+	if (status) {
+		args.push(`--status=${status}`);
+	}
+	return runGtJson<Convoy[]>(args, { cwd: townRoot });
 }
 
 export async function getConvoyStatus(
-  convoyId: string,
-  townRoot?: string
+	convoyId: string,
+	townRoot?: string,
 ): Promise<Convoy> {
-  const convoys = await runGtJson<Convoy[]>(["convoy", "status", convoyId], {
-    cwd: townRoot,
-  });
-  if (!convoys || convoys.length === 0) {
-    throw new Error(`Convoy not found: ${convoyId}`);
-  }
-  return convoys[0];
+	const convoys = await runGtJson<Convoy[]>(["convoy", "status", convoyId], {
+		cwd: townRoot,
+	});
+	if (!convoys || convoys.length === 0) {
+		throw new Error(`Convoy not found: ${convoyId}`);
+	}
+	return convoys[0];
 }
 
 export async function createConvoy(
-  request: ConvoyCreateRequest,
-  townRoot?: string
+	request: ConvoyCreateRequest,
+	townRoot?: string,
 ): Promise<ActionResult> {
-  const args = ["convoy", "create", request.name, ...request.issues];
-  
-  if (request.notify) {
-    args.push("--notify", request.notify);
-  }
-  if (request.molecule) {
-    args.push("--molecule", request.molecule);
-  }
+	const args = ["convoy", "create", request.name, ...request.issues];
 
-  const result = await runGt(args, { cwd: townRoot });
-  
-  if (result.exitCode !== 0) {
-    return {
-      success: false,
-      message: "Failed to create convoy",
-      error: result.stderr,
-    };
-  }
+	if (request.notify) {
+		args.push("--notify", request.notify);
+	}
+	if (request.molecule) {
+		args.push("--molecule", request.molecule);
+	}
 
-  // Parse convoy ID from output
-  const match = result.stdout.match(/Created convoy: (hq-cv-\w+)/);
-  const convoyId = match ? match[1] : undefined;
+	const result = await runGt(args, { cwd: townRoot });
 
-  return {
-    success: true,
-    message: `Convoy created${convoyId ? `: ${convoyId}` : ""}`,
-    data: { convoy_id: convoyId },
-  };
+	if (result.exitCode !== 0) {
+		return {
+			success: false,
+			message: "Failed to create convoy",
+			error: result.stderr,
+		};
+	}
+
+	// Parse convoy ID from output
+	const match = result.stdout.match(/Created convoy: (hq-cv-\w+)/);
+	const convoyId = match ? match[1] : undefined;
+
+	return {
+		success: true,
+		message: `Convoy created${convoyId ? `: ${convoyId}` : ""}`,
+		data: { convoy_id: convoyId },
+	};
 }
 
 export async function addToConvoy(
-  convoyId: string,
-  issueIds: string[],
-  townRoot?: string
+	convoyId: string,
+	issueIds: string[],
+	townRoot?: string,
 ): Promise<ActionResult> {
-  const result = await runGt(["convoy", "add", convoyId, ...issueIds], {
-    cwd: townRoot,
-  });
+	const result = await runGt(["convoy", "add", convoyId, ...issueIds], {
+		cwd: townRoot,
+	});
 
-  if (result.exitCode !== 0) {
-    return {
-      success: false,
-      message: "Failed to add issues to convoy",
-      error: result.stderr,
-    };
-  }
+	if (result.exitCode !== 0) {
+		return {
+			success: false,
+			message: "Failed to add issues to convoy",
+			error: result.stderr,
+		};
+	}
 
-  return {
-    success: true,
-    message: `Added ${issueIds.length} issue(s) to convoy ${convoyId}`,
-  };
+	return {
+		success: true,
+		message: `Added ${issueIds.length} issue(s) to convoy ${convoyId}`,
+	};
+}
+
+// Raw response from gt convoy status --json
+interface ConvoyStatusResponse {
+	id: string;
+	title: string;
+	status: string;
+	tracked: Array<{
+		id: string;
+		title: string;
+		status: string;
+		issue_type?: string;
+		assignee?: string;
+		worker?: string;
+		worker_age?: string;
+		dependency_type?: string;
+	}>;
+	completed: number;
+	total: number;
+}
+
+// Parse structured fields from convoy description
+function parseConvoyDescription(description?: string): {
+	formula?: string;
+	notify?: string;
+	molecule?: string;
+} {
+	const result: { formula?: string; notify?: string; molecule?: string } = {};
+	if (!description) return result;
+
+	for (const line of description.split("\n")) {
+		const colonIdx = line.indexOf(":");
+		if (colonIdx === -1) continue;
+
+		const key = line.slice(0, colonIdx).trim().toLowerCase();
+		const value = line.slice(colonIdx + 1).trim();
+
+		if (key === "formula" || key === "formula_path") {
+			result.formula = value;
+		} else if (key === "notify") {
+			result.notify = value;
+		} else if (key === "molecule") {
+			result.molecule = value;
+		}
+	}
+
+	return result;
+}
+
+export async function getConvoyDetail(
+	convoyId: string,
+	townRoot?: string,
+): Promise<ConvoyDetail> {
+	// Get detailed status using gt convoy status which includes worker info
+	const result = await runGt(["convoy", "status", convoyId, "--json"], {
+		cwd: townRoot,
+	});
+
+	if (result.exitCode !== 0) {
+		throw new Error(`Convoy not found: ${convoyId}`);
+	}
+
+	let statusData: ConvoyStatusResponse;
+	try {
+		statusData = JSON.parse(result.stdout);
+	} catch {
+		throw new Error(`Failed to parse convoy status: ${result.stdout}`);
+	}
+
+	// Get convoy description for metadata
+	const convoys = await runGtJson<Convoy[]>(["convoy", "list", "--json"], {
+		cwd: townRoot,
+	});
+	const convoyBasic = convoys?.find((c) => c.id === convoyId);
+	const metadata = parseConvoyDescription(convoyBasic?.description);
+
+	// Transform tracked issues
+	const trackedIssues: TrackedIssueDetail[] = (statusData.tracked || []).map(
+		(t) => ({
+			id: t.id,
+			title: t.title,
+			status: t.status,
+			assignee: t.assignee,
+			worker: t.worker,
+			worker_age: t.worker_age,
+			issue_type: t.issue_type,
+			dependency_type: t.dependency_type,
+		}),
+	);
+
+	// Extract workers from tracked issues
+	const workers: WorkerInfo[] = trackedIssues
+		.filter((t) => t.worker)
+		.map((t) => ({
+			agent: t.worker!,
+			issue_id: t.id,
+			age: t.worker_age || "",
+		}));
+
+	// Check synthesis readiness
+	const completed = trackedIssues.filter((t) => t.status === "closed").length;
+	const total = trackedIssues.length;
+	const synthesisReady = total > 0 && completed === total;
+
+	// Check if stranded (has open unassigned issues)
+	const isStranded = trackedIssues.some(
+		(t) => t.status === "open" && !t.assignee && !t.worker,
+	);
+
+	return {
+		id: statusData.id,
+		title: statusData.title,
+		status: statusData.status as "open" | "closed",
+		description: convoyBasic?.description,
+		created_at: convoyBasic?.created_at || "",
+		updated_at: convoyBasic?.updated_at,
+		progress: `${completed}/${total}`,
+		completed,
+		total,
+		formula: metadata.formula,
+		notify: metadata.notify,
+		molecule: metadata.molecule,
+		workers,
+		synthesis_ready: synthesisReady,
+		is_stranded: isStranded,
+		tracked_issues: trackedIssues,
+	};
+}
+
+export async function getStrandedConvoys(
+	townRoot?: string,
+): Promise<StrandedConvoy[]> {
+	const result = await runGt(["convoy", "stranded", "--json"], {
+		cwd: townRoot,
+	});
+
+	if (result.exitCode !== 0) {
+		return [];
+	}
+
+	try {
+		return JSON.parse(result.stdout) || [];
+	} catch {
+		return [];
+	}
+}
+
+export async function closeConvoy(
+	convoyId: string,
+	reason: string,
+	townRoot?: string,
+): Promise<ActionResult> {
+	// Close convoy via bd close
+	const closeResult = await runGt(
+		["--", "bd", "close", convoyId, "-r", reason || "Manually closed"],
+		{ cwd: townRoot },
+	);
+
+	if (closeResult.exitCode !== 0) {
+		return {
+			success: false,
+			message: "Failed to close convoy",
+			error: closeResult.stderr,
+		};
+	}
+
+	return {
+		success: true,
+		message: `Convoy ${convoyId} closed`,
+	};
+}
+
+export async function getSynthesisStatus(
+	convoyId: string,
+	townRoot?: string,
+): Promise<SynthesisStatus> {
+	const detail = await getConvoyDetail(convoyId, townRoot);
+
+	const incompletLegs = detail.tracked_issues
+		.filter((t) => t.status !== "closed")
+		.map((t) => ({
+			id: t.id,
+			title: t.title,
+			status: t.status,
+		}));
+
+	return {
+		convoy_id: convoyId,
+		ready: detail.synthesis_ready,
+		completed: detail.completed || 0,
+		total: detail.total || 0,
+		incomplete_legs: incompletLegs,
+	};
+}
+
+export async function startSynthesis(
+	convoyId: string,
+	targetRig?: string,
+	townRoot?: string,
+): Promise<ActionResult> {
+	const args = ["synthesis", "start", convoyId];
+	if (targetRig) {
+		args.push("--rig", targetRig);
+	}
+
+	const result = await runGt(args, { cwd: townRoot });
+
+	if (result.exitCode !== 0) {
+		return {
+			success: false,
+			message: "Failed to start synthesis",
+			error: result.stderr,
+		};
+	}
+
+	return {
+		success: true,
+		message: `Synthesis started for ${convoyId}`,
+		data: { output: result.stdout },
+	};
+}
+
+export async function removeFromConvoy(
+	convoyId: string,
+	issueId: string,
+	townRoot?: string,
+): Promise<ActionResult> {
+	const result = await runGt(["--", "bd", "dep", "rm", convoyId, issueId], {
+		cwd: townRoot,
+	});
+
+	if (result.exitCode !== 0) {
+		return {
+			success: false,
+			message: "Failed to remove issue from convoy",
+			error: result.stderr,
+		};
+	}
+
+	return {
+		success: true,
+		message: `Removed ${issueId} from convoy ${convoyId}`,
+	};
 }

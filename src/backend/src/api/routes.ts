@@ -5,6 +5,12 @@ import {
 	getConvoyStatus,
 	createConvoy,
 	addToConvoy,
+	getConvoyDetail,
+	getStrandedConvoys,
+	closeConvoy,
+	getSynthesisStatus,
+	startSynthesis,
+	removeFromConvoy,
 } from "../services/convoys.js";
 import {
 	listBeads,
@@ -27,6 +33,7 @@ import {
 } from "../services/actions.js";
 import type {
 	ConvoyCreateRequest,
+	ConvoyCloseRequest,
 	SlingRequest,
 	RigAddRequest,
 	CrewAddRequest,
@@ -74,6 +81,15 @@ router.get(
 	}),
 );
 
+// Static routes must come before parameterized routes
+router.get(
+	"/convoys/stranded",
+	asyncHandler(async (req, res) => {
+		const stranded = await getStrandedConvoys(getTownRoot(req));
+		res.json(stranded);
+	}),
+);
+
 router.get(
 	"/convoys/:id",
 	asyncHandler(async (req, res) => {
@@ -96,6 +112,56 @@ router.post(
 	asyncHandler(async (req, res) => {
 		const { issues } = req.body as { issues: string[] };
 		const result = await addToConvoy(req.params.id, issues, getTownRoot(req));
+		res.json(result);
+	}),
+);
+
+router.get(
+	"/convoys/:id/detail",
+	asyncHandler(async (req, res) => {
+		const detail = await getConvoyDetail(req.params.id, getTownRoot(req));
+		res.json(detail);
+	}),
+);
+
+router.post(
+	"/convoys/:id/close",
+	asyncHandler(async (req, res) => {
+		const { reason } = req.body as ConvoyCloseRequest;
+		const result = await closeConvoy(req.params.id, reason, getTownRoot(req));
+		res.json(result);
+	}),
+);
+
+router.delete(
+	"/convoys/:id/issues/:issueId",
+	asyncHandler(async (req, res) => {
+		const result = await removeFromConvoy(
+			req.params.id,
+			req.params.issueId,
+			getTownRoot(req),
+		);
+		res.json(result);
+	}),
+);
+
+// =====================
+// Synthesis
+// =====================
+
+router.get(
+	"/synthesis/:id/status",
+	asyncHandler(async (req, res) => {
+		const status = await getSynthesisStatus(req.params.id, getTownRoot(req));
+		res.json(status);
+	}),
+);
+
+router.post(
+	"/synthesis/:id/start",
+	asyncHandler(async (req, res) => {
+		const { rig } = req.body as { rig?: string };
+		const result = await startSynthesis(req.params.id, rig, getTownRoot(req));
 		res.json(result);
 	}),
 );

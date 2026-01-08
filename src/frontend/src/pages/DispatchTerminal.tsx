@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import { Terminal } from "@/components/Terminal";
+import { useState, useEffect, useCallback } from "react";
+import { Terminal, TerminalApi } from "@/components/Terminal";
 import { Wifi, WifiOff, Users, Zap } from "lucide-react";
+import { CommandLegend } from "@/components/CommandLegend";
 
 interface RigStatus {
 	name: string;
@@ -13,6 +14,16 @@ export default function DispatchTerminal() {
 	const [selectedPane, setSelectedPane] = useState("hq-mayor");
 	const [rigs, setRigs] = useState<RigStatus[]>([]);
 	const [showRigWhisper, setShowRigWhisper] = useState(false);
+	const [showLegend, setShowLegend] = useState(false);
+	const [terminalApi, setTerminalApi] = useState<TerminalApi | null>(null);
+
+	// Paste text to terminal without pressing Enter
+	const pasteToTerminal = useCallback(
+		(text: string) => {
+			terminalApi?.paste(text);
+		},
+		[terminalApi],
+	);
 
 	// Fetch rig status for peripheral awareness (Atlas's whispers)
 	useEffect(() => {
@@ -92,6 +103,7 @@ export default function DispatchTerminal() {
 					<Terminal
 						pane={selectedPane}
 						onConnectionChange={setConnected}
+						onReady={setTerminalApi}
 						className="w-full h-full"
 					/>
 				</div>
@@ -124,19 +136,27 @@ export default function DispatchTerminal() {
 				)}
 			</div>
 
-			{/* Barely-there bottom whisper */}
-			<div className="flex items-center justify-center px-3 py-0.5 text-[9px] text-zinc-700/60 font-mono bg-[#0a0a0f] gap-4">
-				<span className="flex items-center gap-1">
-					<kbd className="px-0.5 rounded bg-zinc-800/30 text-zinc-600">esc</kbd>
-					interrupt
+			{/* Command Dock */}
+			<button
+				onClick={() => setShowLegend(true)}
+				className="w-full py-2.5 bg-orange-950/40 border-t border-orange-900/50 hover:bg-orange-900/30 transition-all cursor-pointer"
+			>
+				<span className="text-xs font-medium tracking-[0.25em] text-orange-400/70 hover:text-orange-300/80">
+					COMMAND DOCK
 				</span>
-				<span className="flex items-center gap-1">
-					<kbd className="px-0.5 rounded bg-zinc-800/30 text-zinc-600">
-						/clear
-					</kbd>
-					reset
-				</span>
-			</div>
+			</button>
+
+			{/* Command Legend Modal */}
+			{showLegend && (
+				<CommandLegend
+					isOpen={showLegend}
+					onInsertCommand={(cmd) => {
+						pasteToTerminal(cmd);
+						setShowLegend(false);
+					}}
+					onClose={() => setShowLegend(false)}
+				/>
+			)}
 		</div>
 	);
 }

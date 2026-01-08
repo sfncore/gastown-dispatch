@@ -8,6 +8,7 @@ import {
 	RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CommandLegend } from "@/components/CommandLegend";
 
 interface DispatchMessage {
 	id: string;
@@ -241,6 +242,7 @@ export default function Dispatch() {
 					>
 						<RotateCcw size={18} className="text-red-500" />
 					</button>
+					<CommandLegend onInsertCommand={setInput} />
 					<button
 						className="p-2 rounded-lg bg-gt-surface hover:bg-gt-border transition-colors"
 						title="Settings"

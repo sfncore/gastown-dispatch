@@ -346,3 +346,186 @@ class DispatchStreamer extends EventEmitter {
 }
 
 export const dispatchStreamer = new DispatchStreamer();
+
+// Convoy streaming for real-time convoy updates
+interface ConvoySnapshot {
+	id: string;
+	status: string;
+	completed: number;
+	total: number;
+	tracked_issues: Array<{
+		id: string;
+		status: string;
+		worker?: string;
+	}>;
+}
+
+class ConvoyStreamer extends EventEmitter {
+	private clients: Map<string, StreamClient> = new Map();
+	private pollInterval: NodeJS.Timeout | null = null;
+	private convoyCache: Map<string, ConvoySnapshot> = new Map();
+	private townRoot: string | undefined;
+
+	addClient(client: StreamClient, townRoot?: string): void {
+		this.clients.set(client.id, client);
+		this.townRoot = townRoot;
+
+		// Start polling when first client connects
+		if (this.clients.size === 1) {
+			this.startPolling();
+		}
+	}
+
+	removeClient(id: string): void {
+		this.clients.delete(id);
+
+		// Stop polling when no clients
+		if (this.clients.size === 0) {
+			this.stopPolling();
+		}
+	}
+
+	private startPolling(): void {
+		if (this.pollInterval) return;
+
+		// Initial poll
+		this.pollConvoys();
+
+		// Poll every 5 seconds
+		this.pollInterval = setInterval(() => {
+			this.pollConvoys();
+		}, 5000);
+	}
+
+	private stopPolling(): void {
+		if (this.pollInterval) {
+			clearInterval(this.pollInterval);
+			this.pollInterval = null;
+		}
+		this.convoyCache.clear();
+	}
+
+	private async pollConvoys(): Promise<void> {
+		try {
+			// Dynamic import to avoid circular dependency
+			const { listConvoys } = await import("./convoys.js");
+			const convoys = await listConvoys("open", this.townRoot);
+
+			const currentIds = new Set(convoys.map((c) => c.id));
+			const cachedIds = new Set(this.convoyCache.keys());
+
+			// Check for new convoys
+			for (const convoy of convoys) {
+				const cached = this.convoyCache.get(convoy.id);
+
+				if (!cached) {
+					// New convoy
+					this.broadcast("convoy:created", {
+						convoy_id: convoy.id,
+						title: convoy.title,
+						status: convoy.status,
+						total: convoy.tracked_issues?.length ?? 0,
+					});
+				} else {
+					// Check for changes
+					const completed =
+						convoy.tracked_issues?.filter((i) => i.status === "closed")
+							.length ?? 0;
+					const total = convoy.tracked_issues?.length ?? 0;
+
+					// Progress changed
+					if (cached.completed !== completed || cached.total !== total) {
+						this.broadcast("convoy:updated", {
+							convoy_id: convoy.id,
+							status: convoy.status,
+							completed,
+							total,
+							progress: total > 0 ? Math.round((completed / total) * 100) : 0,
+						});
+					}
+
+					// Check for issue status changes
+					if (convoy.tracked_issues) {
+						for (const issue of convoy.tracked_issues) {
+							const cachedIssue = cached.tracked_issues?.find(
+								(i) => i.id === issue.id,
+							);
+
+							if (cachedIssue && cachedIssue.status !== issue.status) {
+								this.broadcast("issue:status", {
+									convoy_id: convoy.id,
+									issue_id: issue.id,
+									old_status: cachedIssue.status,
+									new_status: issue.status,
+								});
+							}
+
+							// Worker assigned (simplified - just check if worker changed)
+							const currentWorker =
+								issue.status === "in_progress" || issue.status === "hooked"
+									? issue.assignee
+									: undefined;
+							if (
+								cachedIssue &&
+								cachedIssue.worker !== currentWorker &&
+								currentWorker
+							) {
+								this.broadcast("worker:assigned", {
+									convoy_id: convoy.id,
+									issue_id: issue.id,
+									worker: currentWorker,
+								});
+							}
+						}
+					}
+				}
+
+				// Update cache
+				this.convoyCache.set(convoy.id, {
+					id: convoy.id,
+					status: convoy.status,
+					completed:
+						convoy.tracked_issues?.filter((i) => i.status === "closed")
+							.length ?? 0,
+					total: convoy.tracked_issues?.length ?? 0,
+					tracked_issues:
+						convoy.tracked_issues?.map((i) => ({
+							id: i.id,
+							status: i.status,
+							worker:
+								i.status === "in_progress" || i.status === "hooked"
+									? i.assignee
+									: undefined,
+						})) ?? [],
+				});
+			}
+
+			// Check for closed convoys (no longer in open list)
+			for (const cachedId of cachedIds) {
+				if (!currentIds.has(cachedId)) {
+					this.broadcast("convoy:closed", {
+						convoy_id: cachedId,
+						closed_at: new Date().toISOString(),
+					});
+					this.convoyCache.delete(cachedId);
+				}
+			}
+		} catch (err) {
+			// Log but don't crash - polling will retry
+			console.error("Convoy poll error:", err);
+		}
+	}
+
+	private broadcast(event: string, data: unknown): void {
+		for (const client of this.clients.values()) {
+			client.send(event, data);
+		}
+		this.emit(event, data);
+	}
+
+	hasClients(): boolean {
+		return this.clients.size > 0;
+	}
+}
+
+export const convoyStreamer = new ConvoyStreamer();

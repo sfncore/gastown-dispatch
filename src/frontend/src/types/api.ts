@@ -89,6 +89,46 @@ export interface TrackedIssue {
 	assignee?: string;
 }
 
+// Enhanced convoy types for detail view
+export interface TrackedIssueDetail extends TrackedIssue {
+	worker?: string;
+	worker_age?: string;
+	issue_type?: string;
+	created_at?: string;
+	dependency_type?: string;
+}
+
+export interface WorkerInfo {
+	agent: string;
+	issue_id: string;
+	age: string;
+}
+
+export interface ConvoyDetail extends Convoy {
+	formula?: string;
+	notify?: string;
+	molecule?: string;
+	workers: WorkerInfo[];
+	synthesis_ready: boolean;
+	is_stranded: boolean;
+	tracked_issues: TrackedIssueDetail[];
+}
+
+export interface StrandedConvoy {
+	id: string;
+	title: string;
+	ready_count: number;
+	ready_issues: string[];
+}
+
+export interface SynthesisStatus {
+	convoy_id: string;
+	ready: boolean;
+	completed: number;
+	total: number;
+	incomplete_legs: { id: string; title: string; status: string }[];
+}
+
 export interface Bead {
 	id: string;
 	title: string;

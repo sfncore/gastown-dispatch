@@ -1,6 +1,10 @@
 import { Router, Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
-import { logStreamer, dispatchStreamer } from "../services/streaming.js";
+import {
+	logStreamer,
+	dispatchStreamer,
+	convoyStreamer,
+} from "../services/streaming.js";
 import { dispatchService } from "../services/dispatch.js";
 
 const router = Router();
@@ -169,6 +173,37 @@ router.get("/dispatch/transcripts/:id", (req: Request, res: Response) => {
 		return;
 	}
 	res.json({ transcript });
+});
+
+// =====================
+// Convoy Streaming
+// =====================
+
+router.get("/convoys", (req: Request, res: Response) => {
+	setupSSE(res);
+
+	const clientId = uuidv4();
+	const townRoot = getTownRoot(req);
+
+	const client = {
+		id: clientId,
+		send: (event: string, data: unknown) => sendSSE(res, event, data),
+		close: () => res.end(),
+	};
+
+	// Send initial connected event
+	sendSSE(res, "connected", {
+		clientId,
+		timestamp: new Date().toISOString(),
+	});
+
+	// Register client
+	convoyStreamer.addClient(client, townRoot);
+
+	// Handle client disconnect
+	req.on("close", () => {
+		convoyStreamer.removeClient(clientId);
+	});
 });
 
 export default router;
