@@ -8,6 +8,7 @@ import {
 	ScrollText,
 	Settings,
 	Rocket,
+	HardDrive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Overview from "@/pages/Overview";
@@ -18,12 +19,14 @@ import Agents from "@/pages/Agents";
 import Logs from "@/pages/Logs";
 import SettingsPage from "@/pages/Settings";
 import Onboarding from "@/pages/Onboarding";
+import Rigs from "@/pages/Rigs";
 
 const navItems = [
 	{ to: "/overview", icon: LayoutDashboard, label: "Overview" },
 	{ to: "/dispatch", icon: MessageSquare, label: "Dispatch" },
 	{ to: "/convoys", icon: Truck, label: "Convoys" },
 	{ to: "/beads", icon: CircleDot, label: "Beads" },
+	{ to: "/rigs", icon: HardDrive, label: "Rigs" },
 	{ to: "/agents", icon: Users, label: "Agents" },
 	{ to: "/logs", icon: ScrollText, label: "Logs" },
 	{ to: "/settings", icon: Settings, label: "Settings" },
@@ -101,6 +104,7 @@ export default function App() {
 					<Route path="/dispatch" element={<DispatchTerminal />} />
 					<Route path="/convoys" element={<Convoys />} />
 					<Route path="/beads" element={<Beads />} />
+					<Route path="/rigs" element={<Rigs />} />
 					<Route path="/agents" element={<Agents />} />
 					<Route path="/logs" element={<Logs />} />
 					<Route path="/settings" element={<SettingsPage />} />

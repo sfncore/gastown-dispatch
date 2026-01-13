@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Terminal, TerminalApi } from "@/components/Terminal";
-import { Wifi, WifiOff, Users, Zap } from "lucide-react";
+import { Wifi, WifiOff, Users, Zap, Trash2, RotateCcw } from "lucide-react";
 import { CommandLegend } from "@/components/CommandLegend";
 
 interface RigStatus {
@@ -25,19 +25,55 @@ export default function DispatchTerminal() {
 		[terminalApi],
 	);
 
+	// Clear Mayor's context by sending /clear
+	const handleClearContext = async () => {
+		if (!confirm("Clear Mayor's context? This sends /clear to Mayor.")) return;
+		try {
+			await fetch("/api/stream/dispatch/send", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ content: "/clear" }),
+			});
+		} catch (err) {
+			console.error("Failed to clear context:", err);
+		}
+	};
+
+	// Restart Mayor session (kill + respawn)
+	const handleRestartMayor = async () => {
+		if (
+			!confirm("Restart Mayor? This will kill and respawn the Mayor session.")
+		)
+			return;
+		try {
+			const res = await fetch("/api/mayor/restart", { method: "POST" });
+			if (!res.ok) throw new Error("Restart failed");
+		} catch (err) {
+			console.error("Failed to restart Mayor:", err);
+		}
+	};
+
 	// Fetch rig status for peripheral awareness (Atlas's whispers)
 	useEffect(() => {
 		const fetchStatus = async () => {
 			try {
 				const res = await fetch("/api/status");
 				const data = await res.json();
-				if (data.rigs) {
+				// Rigs are under data.status.rigs
+				const rigList = data.status?.rigs || data.rigs || [];
+				if (rigList.length > 0) {
 					setRigs(
-						data.rigs.map((r: { name: string; crew_count?: number }) => ({
-							name: r.name,
-							active: (r.crew_count || 0) > 0,
-							crew: r.crew_count || 0,
-						})),
+						rigList.map(
+							(r: {
+								name: string;
+								crew_count?: number;
+								polecat_count?: number;
+							}) => ({
+								name: r.name,
+								active: (r.crew_count || 0) > 0 || (r.polecat_count || 0) > 0,
+								crew: r.crew_count || 0,
+							}),
+						),
 					);
 				}
 			} catch {
@@ -68,16 +104,38 @@ export default function DispatchTerminal() {
 					</span>
 				</div>
 
-				{/* Center: Pane selector */}
-				<select
-					value={selectedPane}
-					onChange={(e) => setSelectedPane(e.target.value)}
-					className="bg-transparent border-none text-[11px] text-zinc-500 font-mono focus:outline-none cursor-pointer hover:text-zinc-400"
-				>
-					<option value="hq-mayor">mayor</option>
-					<option value="hq-deacon">deacon</option>
-					<option value="hq-witness">witness</option>
-				</select>
+				{/* Center: Pane selector + actions */}
+				<div className="flex items-center gap-2">
+					<select
+						value={selectedPane}
+						onChange={(e) => setSelectedPane(e.target.value)}
+						className="bg-transparent border-none text-[11px] text-zinc-500 font-mono focus:outline-none cursor-pointer hover:text-zinc-400"
+					>
+						<option value="hq-mayor">mayor</option>
+						<option value="hq-deacon">deacon</option>
+						<option value="hq-witness">witness</option>
+					</select>
+					<button
+						onClick={handleClearContext}
+						className="p-1 rounded hover:bg-yellow-900/30 transition-colors"
+						title="Clear Context (/clear)"
+					>
+						<Trash2
+							size={12}
+							className="text-yellow-500/60 hover:text-yellow-500"
+						/>
+					</button>
+					<button
+						onClick={handleRestartMayor}
+						className="p-1 rounded hover:bg-red-900/30 transition-colors"
+						title="Restart Mayor (kill + respawn)"
+					>
+						<RotateCcw
+							size={12}
+							className="text-red-500/60 hover:text-red-500"
+						/>
+					</button>
+				</div>
 
 				{/* Right: Fleet pulse */}
 				<button
@@ -155,6 +213,7 @@ export default function DispatchTerminal() {
 						setShowLegend(false);
 					}}
 					onClose={() => setShowLegend(false)}
+					rigs={rigs}
 				/>
 			)}
 		</div>

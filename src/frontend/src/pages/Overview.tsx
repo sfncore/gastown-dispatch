@@ -8,295 +8,361 @@ import {
 	CircleDot,
 	Users,
 	AlertTriangle,
+	PowerOff,
 } from "lucide-react";
 import { getStatus, startTown, shutdownTown } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
+
+const API_BASE_URL = "/api";
+
+interface RigEnabledState {
+	[name: string]: boolean;
+}
+
+async function getRigsEnabledState(): Promise<RigEnabledState> {
+	const res = await fetch(`${API_BASE_URL}/rigs`);
+	if (!res.ok) return {};
+	const data = await res.json();
+	const state: RigEnabledState = {};
+	for (const rig of data.rigs) {
+		state[rig.name] = rig.enabled;
+	}
+	return state;
+}
 
 function StatCard({
-  label,
-  value,
-  icon: Icon,
-  color = "text-gt-text",
+	label,
+	value,
+	icon: Icon,
+	color = "text-gt-text",
 }: {
-  label: string;
-  value: number | string;
-  icon: typeof Activity;
-  color?: string;
+	label: string;
+	value: number | string;
+	icon: typeof Activity;
+	color?: string;
 }) {
-  return (
-    <div className="bg-gt-surface border border-gt-border rounded-lg p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gt-muted">{label}</p>
-          <p className={cn("text-2xl font-semibold mt-1", color)}>{value}</p>
-        </div>
-        <Icon className="text-gt-muted" size={24} />
-      </div>
-    </div>
-  );
+	return (
+		<div className="bg-gt-surface border border-gt-border rounded-lg p-4">
+			<div className="flex items-center justify-between">
+				<div>
+					<p className="text-sm text-gt-muted">{label}</p>
+					<p className={cn("text-2xl font-semibold mt-1", color)}>{value}</p>
+				</div>
+				<Icon className="text-gt-muted" size={24} />
+			</div>
+		</div>
+	);
 }
 
 function AgentCard({
-  name,
-  role,
-  running,
-  hasWork,
-  workTitle,
+	name,
+	role,
+	running,
+	hasWork,
+	workTitle,
 }: {
-  name: string;
-  role: string;
-  running: boolean;
-  hasWork: boolean;
-  workTitle?: string;
+	name: string;
+	role: string;
+	running: boolean;
+	hasWork: boolean;
+	workTitle?: string;
 }) {
-  return (
-    <div className="bg-gt-surface border border-gt-border rounded-lg p-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div
-            className={cn(
-              "w-2 h-2 rounded-full",
-              running ? "bg-green-400" : "bg-gray-500"
-            )}
-          />
-          <span className="font-medium">{name}</span>
-          <span className="text-xs text-gt-muted bg-gt-bg px-2 py-0.5 rounded">
-            {role}
-          </span>
-        </div>
-      </div>
-      {hasWork && workTitle && (
-        <p className="text-sm text-gt-muted mt-2 truncate">📌 {workTitle}</p>
-      )}
-    </div>
-  );
+	return (
+		<div className="bg-gt-surface border border-gt-border rounded-lg p-3">
+			<div className="flex items-center justify-between">
+				<div className="flex items-center gap-2">
+					<div
+						className={cn(
+							"w-2 h-2 rounded-full",
+							running ? "bg-green-400" : "bg-gray-500",
+						)}
+					/>
+					<span className="font-medium">{name}</span>
+					<span className="text-xs text-gt-muted bg-gt-bg px-2 py-0.5 rounded">
+						{role}
+					</span>
+				</div>
+			</div>
+			{hasWork && workTitle && (
+				<p className="text-sm text-gt-muted mt-2 truncate">📌 {workTitle}</p>
+			)}
+		</div>
+	);
 }
 
 function RigCard({
-  name,
-  polecatCount,
-  crewCount,
-  hasWitness,
-  hasRefinery,
+	name,
+	polecatCount,
+	crewCount,
+	hasWitness,
+	hasRefinery,
 }: {
-  name: string;
-  polecatCount: number;
-  crewCount: number;
-  hasWitness: boolean;
-  hasRefinery: boolean;
+	name: string;
+	polecatCount: number;
+	crewCount: number;
+	hasWitness: boolean;
+	hasRefinery: boolean;
 }) {
-  return (
-    <div className="bg-gt-surface border border-gt-border rounded-lg p-4">
-      <h3 className="font-medium">{name}</h3>
-      <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-        <div>
-          <span className="text-gt-muted">Polecats:</span>{" "}
-          <span>{polecatCount}</span>
-        </div>
-        <div>
-          <span className="text-gt-muted">Crew:</span> <span>{crewCount}</span>
-        </div>
-      </div>
-      <div className="mt-2 flex gap-2">
-        {hasWitness && (
-          <span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">
-            Witness
-          </span>
-        )}
-        {hasRefinery && (
-          <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded">
-            Refinery
-          </span>
-        )}
-      </div>
-    </div>
-  );
+	return (
+		<div className="bg-gt-surface border border-gt-border rounded-lg p-4">
+			<h3 className="font-medium">{name}</h3>
+			<div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+				<div>
+					<span className="text-gt-muted">Polecats:</span>{" "}
+					<span>{polecatCount}</span>
+				</div>
+				<div>
+					<span className="text-gt-muted">Crew:</span> <span>{crewCount}</span>
+				</div>
+			</div>
+			<div className="mt-2 flex gap-2">
+				{hasWitness && (
+					<span className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded">
+						Witness
+					</span>
+				)}
+				{hasRefinery && (
+					<span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded">
+						Refinery
+					</span>
+				)}
+			</div>
+		</div>
+	);
 }
 
 export default function Overview() {
-  const {
-    data: response,
-    isLoading,
-    error,
-    refetch,
-    isFetching,
-  } = useQuery({
-    queryKey: ["status"],
-    queryFn: getStatus,
-    refetchInterval: 10_000,
-  });
+	const {
+		data: response,
+		isLoading,
+		error,
+		refetch,
+		isFetching,
+	} = useQuery({
+		queryKey: ["status"],
+		queryFn: getStatus,
+		refetchInterval: 10_000,
+	});
 
-  const handleStart = async () => {
-    await startTown();
-    refetch();
-  };
+	const { data: rigsEnabled } = useQuery({
+		queryKey: ["rigs-enabled"],
+		queryFn: getRigsEnabledState,
+		refetchInterval: 10_000,
+	});
 
-  const handleShutdown = async () => {
-    if (confirm("Are you sure you want to shutdown Gas Town?")) {
-      await shutdownTown();
-      refetch();
-    }
-  };
+	const handleStart = async () => {
+		await startTown();
+		refetch();
+	};
 
-  if (isLoading) {
-    return (
-      <div className="p-6 flex items-center justify-center h-full">
-        <RefreshCw className="animate-spin text-gt-muted" size={24} />
-      </div>
-    );
-  }
+	const handleShutdown = async () => {
+		if (confirm("Are you sure you want to shutdown Gas Town?")) {
+			await shutdownTown();
+			refetch();
+		}
+	};
 
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-900/20 border border-red-500 rounded-lg p-4">
-          <p className="text-red-400">Failed to load status: {error.message}</p>
-          <button
-            onClick={() => refetch()}
-            className="mt-2 text-sm text-red-300 hover:text-red-200"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
+	if (isLoading) {
+		return (
+			<div className="p-6 flex items-center justify-center h-full">
+				<RefreshCw className="animate-spin text-gt-muted" size={24} />
+			</div>
+		);
+	}
 
-  // Handle uninitialized state
-  if (!response?.initialized) {
-    return (
-      <div className="p-6">
-        <div className="bg-amber-900/20 border border-amber-500 rounded-lg p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <AlertTriangle className="text-amber-400" size={24} />
-            <h2 className="text-lg font-medium text-amber-300">
-              Gas Town Not Configured
-            </h2>
-          </div>
-          <p className="text-amber-200/80 mb-4">
-            {response?.error ||
-              "Not connected to a Gas Town workspace."}
-          </p>
-          <p className="text-sm text-gt-muted">
-            Set the <code className="bg-gt-surface px-1 rounded">GT_TOWN_ROOT</code> environment variable or start the server from within a Gas Town project directory.
-          </p>
-        </div>
-      </div>
-    );
-  }
+	if (error) {
+		return (
+			<div className="p-6">
+				<div className="bg-red-900/20 border border-red-500 rounded-lg p-4">
+					<p className="text-red-400">Failed to load status: {error.message}</p>
+					<button
+						onClick={() => refetch()}
+						className="mt-2 text-sm text-red-300 hover:text-red-200"
+					>
+						Retry
+					</button>
+				</div>
+			</div>
+		);
+	}
 
-  const status = response.status;
-  const deaconRunning = status?.agents.some(
-    (a) => a.role === "deacon" && a.running,
-  );
+	// Handle uninitialized state
+	if (!response?.initialized) {
+		return (
+			<div className="p-6">
+				<div className="bg-amber-900/20 border border-amber-500 rounded-lg p-6">
+					<div className="flex items-center gap-3 mb-3">
+						<AlertTriangle className="text-amber-400" size={24} />
+						<h2 className="text-lg font-medium text-amber-300">
+							Gas Town Not Configured
+						</h2>
+					</div>
+					<p className="text-amber-200/80 mb-4">
+						{response?.error || "Not connected to a Gas Town workspace."}
+					</p>
+					<p className="text-sm text-gt-muted">
+						Set the{" "}
+						<code className="bg-gt-surface px-1 rounded">GT_TOWN_ROOT</code>{" "}
+						environment variable or start the server from within a Gas Town
+						project directory.
+					</p>
+				</div>
+			</div>
+		);
+	}
 
-  return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold">{status?.name || "Gas Town"}</h1>
-          <p className="text-sm text-gt-muted">{status?.location}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="p-2 rounded-lg bg-gt-surface hover:bg-gt-border transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw
-              size={18}
-              className={cn(isFetching && "animate-spin")}
-            />
-          </button>
-          {deaconRunning ? (
-            <button
-              onClick={handleShutdown}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition-colors"
-            >
-              <Square size={16} />
-              Shutdown
-            </button>
-          ) : (
-            <button
-              onClick={handleStart}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 transition-colors"
-            >
-              <Play size={16} />
-              Start
-            </button>
-          )}
-        </div>
-      </div>
+	const status = response.status;
+	const deaconRunning = status?.agents.some(
+		(a) => a.role === "deacon" && a.running,
+	);
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <StatCard
-          label="Rigs"
-          value={status?.summary.rig_count || 0}
-          icon={Activity}
-        />
-        <StatCard
-          label="Convoys"
-          value={status?.summary.active_hooks || 0}
-          icon={Truck}
-          color="text-gt-accent"
-        />
-        <StatCard
-          label="Polecats"
-          value={status?.summary.polecat_count || 0}
-          icon={CircleDot}
-        />
-        <StatCard
-          label="Crew"
-          value={status?.summary.crew_count || 0}
-          icon={Users}
-        />
-      </div>
+	return (
+		<div className="p-6">
+			{/* Header */}
+			<div className="flex items-center justify-between mb-6">
+				<div>
+					<h1 className="text-2xl font-semibold">
+						{status?.name || "Gas Town"}
+					</h1>
+					<p className="text-sm text-gt-muted">{status?.location}</p>
+				</div>
+				<div className="flex items-center gap-2">
+					<button
+						onClick={() => refetch()}
+						disabled={isFetching}
+						className="p-2 rounded-lg bg-gt-surface hover:bg-gt-border transition-colors"
+						title="Refresh"
+					>
+						<RefreshCw size={18} className={cn(isFetching && "animate-spin")} />
+					</button>
+					{deaconRunning ? (
+						<button
+							onClick={handleShutdown}
+							className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition-colors"
+						>
+							<Square size={16} />
+							Shutdown
+						</button>
+					) : (
+						<button
+							onClick={handleStart}
+							className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 transition-colors"
+						>
+							<Play size={16} />
+							Start
+						</button>
+					)}
+				</div>
+			</div>
 
-      {/* Global Agents */}
-      <section className="mb-6">
-        <h2 className="text-lg font-medium mb-3">Global Agents</h2>
-        <div className="grid grid-cols-2 gap-3">
-          {status?.agents.map((agent) => (
-            <AgentCard
-              key={agent.address}
-              name={agent.name}
-              role={agent.role}
-              running={agent.running}
-              hasWork={agent.has_work}
-              workTitle={agent.work_title}
-            />
-          ))}
-        </div>
-      </section>
+			{/* Stats */}
+			<div className="grid grid-cols-4 gap-4 mb-6">
+				<StatCard
+					label="Rigs"
+					value={status?.summary.rig_count || 0}
+					icon={Activity}
+				/>
+				<StatCard
+					label="Convoys"
+					value={status?.summary.active_hooks || 0}
+					icon={Truck}
+					color="text-gt-accent"
+				/>
+				<StatCard
+					label="Polecats"
+					value={status?.summary.polecat_count || 0}
+					icon={CircleDot}
+				/>
+				<StatCard
+					label="Crew"
+					value={status?.summary.crew_count || 0}
+					icon={Users}
+				/>
+			</div>
 
-      {/* Rigs */}
-      <section>
-        <h2 className="text-lg font-medium mb-3">Rigs</h2>
-        {status?.rigs.length === 0 ? (
-          <div className="bg-gt-surface border border-gt-border rounded-lg p-6 text-center">
-            <p className="text-gt-muted">No rigs configured yet.</p>
-            <p className="text-sm text-gt-muted mt-1">
-              Add a rig to start managing projects.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-4">
-            {status?.rigs.map((rig) => (
-              <RigCard
-                key={rig.name}
-                name={rig.name}
-                polecatCount={rig.polecat_count}
-                crewCount={rig.crew_count}
-                hasWitness={rig.has_witness}
-                hasRefinery={rig.has_refinery}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
+			{/* Global Agents */}
+			<section className="mb-6">
+				<h2 className="text-lg font-medium mb-3">Global Agents</h2>
+				<div className="grid grid-cols-2 gap-3">
+					{status?.agents.map((agent) => (
+						<AgentCard
+							key={agent.address}
+							name={agent.name}
+							role={agent.role}
+							running={agent.running}
+							hasWork={agent.has_work}
+							workTitle={agent.work_title}
+						/>
+					))}
+				</div>
+			</section>
+
+			{/* Rigs */}
+			<section>
+				<div className="flex items-center justify-between mb-3">
+					<h2 className="text-lg font-medium">Rigs</h2>
+					<Link to="/rigs" className="text-sm text-gt-accent hover:underline">
+						Manage Rigs →
+					</Link>
+				</div>
+				{(() => {
+					const enabledRigs = status?.rigs.filter(
+						(rig) => rigsEnabled?.[rig.name] === true,
+					);
+					const enabledCount = enabledRigs?.length || 0;
+					const totalCount = status?.rigs.length || 0;
+
+					if (totalCount === 0) {
+						return (
+							<div className="bg-gt-surface border border-gt-border rounded-lg p-6 text-center">
+								<p className="text-gt-muted">No rigs configured yet.</p>
+								<p className="text-sm text-gt-muted mt-1">
+									Add a rig to start managing projects.
+								</p>
+							</div>
+						);
+					}
+
+					if (enabledCount === 0) {
+						return (
+							<div className="bg-gt-surface border border-gt-border rounded-lg p-6 text-center">
+								<PowerOff className="mx-auto text-gt-muted mb-3" size={32} />
+								<p className="text-gt-muted">
+									All {totalCount} rigs are disabled
+								</p>
+								<p className="text-sm text-gt-muted mt-1">
+									Enable rigs in the{" "}
+									<Link to="/rigs" className="text-gt-accent hover:underline">
+										Rigs page
+									</Link>{" "}
+									to start working.
+								</p>
+							</div>
+						);
+					}
+
+					return (
+						<>
+							<p className="text-sm text-gt-muted mb-3">
+								{enabledCount} of {totalCount} rigs enabled
+							</p>
+							<div className="grid grid-cols-3 gap-4">
+								{enabledRigs?.map((rig) => (
+									<RigCard
+										key={rig.name}
+										name={rig.name}
+										polecatCount={rig.polecat_count}
+										crewCount={rig.crew_count}
+										hasWitness={rig.has_witness}
+										hasRefinery={rig.has_refinery}
+									/>
+								))}
+							</div>
+						</>
+					);
+				})()}
+			</section>
+		</div>
+	);
 }

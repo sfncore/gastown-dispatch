@@ -27,6 +27,7 @@ export function Terminal({
 	const wsRef = useRef<WebSocket | null>(null);
 	const fitAddonRef = useRef<FitAddon | null>(null);
 	const [_connected, setConnected] = useState(false);
+	const isSelectingRef = useRef(false);
 
 	useEffect(() => {
 		if (!terminalRef.current) return;
@@ -88,7 +89,7 @@ export function Terminal({
 
 		// Connect WebSocket
 		const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-		const wsUrl = `${protocol}//${window.location.hostname}:3001/terminal?pane=${encodeURIComponent(pane)}`;
+		const wsUrl = `${protocol}//${window.location.hostname}:4320/terminal?pane=${encodeURIComponent(pane)}`;
 		const ws = new WebSocket(wsUrl);
 		wsRef.current = ws;
 
@@ -96,6 +97,21 @@ export function Terminal({
 			setConnected(true);
 			onConnectionChange?.(true);
 			term.write("\x1b[2m── Connected to " + pane + " ──\x1b[0m\r\n\r\n");
+
+			// Send resize immediately after connection to sync tmux with terminal size
+			setTimeout(() => {
+				fitAddon.fit();
+				if (term.cols && term.rows) {
+					ws.send(
+						JSON.stringify({
+							type: "resize",
+							cols: term.cols,
+							rows: term.rows,
+						}),
+					);
+				}
+			}, 50);
+
 			onReady?.({
 				paste: (text: string) => {
 					const socket = wsRef.current;
@@ -106,6 +122,25 @@ export function Terminal({
 			});
 		};
 
+		// Track selection state to pause updates while user is selecting text
+		let pendingFrame: string | null = null;
+
+		const container = terminalRef.current;
+		const handleMouseDown = () => {
+			isSelectingRef.current = true;
+		};
+		const handleMouseUp = () => {
+			isSelectingRef.current = false;
+			// Apply any pending frame update after selection ends
+			if (pendingFrame !== null) {
+				term.write("\x1b[H\x1b[J");
+				term.write(pendingFrame);
+				pendingFrame = null;
+			}
+		};
+		container.addEventListener("mousedown", handleMouseDown);
+		document.addEventListener("mouseup", handleMouseUp);
+
 		ws.onmessage = (event) => {
 			try {
 				const msg = JSON.parse(event.data);
@@ -114,6 +149,11 @@ export function Terminal({
 					// Full scrollback history - write it all (creates xterm scrollback)
 					term.write(msg.data);
 				} else if (msg.type === "frame") {
+					// Pause frame updates while user is selecting text
+					if (isSelectingRef.current) {
+						pendingFrame = msg.data;
+						return;
+					}
 					// Visible pane update - overwrite in-place without destroying scrollback
 					// \x1b[H = cursor to home (top-left of viewport)
 					// \x1b[J = clear from cursor to end of screen (not scrollback!)
@@ -145,37 +185,49 @@ export function Terminal({
 		});
 
 		// Handle resize - fit xterm to container and resize tmux pane
+		let lastCols = 0;
+		let lastRows = 0;
+		let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
+
 		const handleResize = () => {
-			try {
-				fitAddon.fit();
-				// Tell backend to resize tmux pane to match
-				if (ws.readyState === WebSocket.OPEN && term.cols && term.rows) {
-					ws.send(
-						JSON.stringify({
-							type: "resize",
-							cols: term.cols,
-							rows: term.rows,
-						}),
-					);
+			if (resizeTimeout) return; // Debounce
+			resizeTimeout = setTimeout(() => {
+				resizeTimeout = null;
+				try {
+					fitAddon.fit();
+					// Only send if dimensions actually changed
+					if (ws.readyState === WebSocket.OPEN && term.cols && term.rows) {
+						if (term.cols !== lastCols || term.rows !== lastRows) {
+							lastCols = term.cols;
+							lastRows = term.rows;
+							ws.send(
+								JSON.stringify({
+									type: "resize",
+									cols: term.cols,
+									rows: term.rows,
+								}),
+							);
+						}
+					}
+				} catch {
+					// Ignore fit errors
 				}
-			} catch {
-				// Ignore fit errors
-			}
+			}, 100);
 		};
 
 		window.addEventListener("resize", handleResize);
 
-		// ResizeObserver for container size changes
-		const resizeObserver = new ResizeObserver(() => {
-			requestAnimationFrame(handleResize);
-		});
+		// ResizeObserver for container size changes - debounced
+		const resizeObserver = new ResizeObserver(handleResize);
 		resizeObserver.observe(terminalRef.current);
 
-		// Initial fit
-		setTimeout(handleResize, 100);
+		// Initial fit after layout settles
+		setTimeout(handleResize, 200);
 
 		return () => {
 			window.removeEventListener("resize", handleResize);
+			container.removeEventListener("mousedown", handleMouseDown);
+			document.removeEventListener("mouseup", handleMouseUp);
 			resizeObserver.disconnect();
 			ws.close();
 			term.dispose();

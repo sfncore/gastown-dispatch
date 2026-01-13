@@ -10,10 +10,10 @@ export default defineConfig({
 		},
 	},
 	server: {
-		port: 3000,
+		port: 4321,
 		proxy: {
 			"/api/stream": {
-				target: "http://localhost:3001",
+				target: "http://localhost:4320",
 				changeOrigin: true,
 				// SSE requires these settings
 				configure: (proxy) => {
@@ -23,7 +23,7 @@ export default defineConfig({
 				},
 			},
 			"/api": {
-				target: "http://localhost:3001",
+				target: "http://localhost:4320",
 				changeOrigin: true,
 			},
 		},

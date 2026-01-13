@@ -20,6 +20,8 @@ import {
 	createBead,
 	updateBeadStatus,
 	closeBead,
+	listRigBeads,
+	getAllRigBeads,
 } from "../services/beads.js";
 import {
 	startTown,
@@ -31,6 +33,14 @@ import {
 	nudgeAgent,
 	runDoctor,
 } from "../services/actions.js";
+import {
+	listRigs,
+	getRigStatus,
+	enableRig,
+	disableRig,
+	enableAllRigs,
+	disableAllRigs,
+} from "../services/rigs.js";
 import type {
 	ConvoyCreateRequest,
 	ConvoyCloseRequest,
@@ -204,6 +214,39 @@ router.get(
 );
 
 router.get(
+	"/beads/by-rig",
+	asyncHandler(async (req, res) => {
+		const rigNames = (req.query.rigs as string)?.split(",") || [];
+		const filters: BeadFilters = {
+			status: req.query.status as string | undefined,
+			type: req.query.type as string | undefined,
+		};
+		const beadsByRig = await getAllRigBeads(
+			rigNames,
+			filters,
+			getTownRoot(req),
+		);
+		res.json(beadsByRig);
+	}),
+);
+
+router.get(
+	"/beads/rig/:rigName",
+	asyncHandler(async (req, res) => {
+		const filters: BeadFilters = {
+			status: req.query.status as string | undefined,
+			type: req.query.type as string | undefined,
+		};
+		const beads = await listRigBeads(
+			req.params.rigName,
+			filters,
+			getTownRoot(req),
+		);
+		res.json(beads);
+	}),
+);
+
+router.get(
 	"/beads/:id",
 	asyncHandler(async (req, res) => {
 		const bead = await getBead(req.params.id, getTownRoot(req));
@@ -328,6 +371,62 @@ router.post(
 	asyncHandler(async (req, res) => {
 		const { restartMayor } = await import("../services/actions.js");
 		const result = await restartMayor(getTownRoot(req));
+		res.json(result);
+	}),
+);
+
+// =====================
+// Rigs Management
+// =====================
+
+router.get(
+	"/rigs",
+	asyncHandler(async (req, res) => {
+		const rigs = await listRigs(getTownRoot(req));
+		res.json(rigs);
+	}),
+);
+
+router.get(
+	"/rigs/:name",
+	asyncHandler(async (req, res) => {
+		const rig = await getRigStatus(req.params.name, getTownRoot(req));
+		if (!rig) {
+			res.status(404).json({ success: false, message: "Rig not found" });
+			return;
+		}
+		res.json(rig);
+	}),
+);
+
+router.post(
+	"/rigs/:name/enable",
+	asyncHandler(async (req, res) => {
+		const result = await enableRig(req.params.name, getTownRoot(req));
+		res.json(result);
+	}),
+);
+
+router.post(
+	"/rigs/:name/disable",
+	asyncHandler(async (req, res) => {
+		const result = await disableRig(req.params.name, getTownRoot(req));
+		res.json(result);
+	}),
+);
+
+router.post(
+	"/rigs/bulk/enable",
+	asyncHandler(async (req, res) => {
+		const result = await enableAllRigs(getTownRoot(req));
+		res.json(result);
+	}),
+);
+
+router.post(
+	"/rigs/bulk/disable",
+	asyncHandler(async (req, res) => {
+		const result = await disableAllRigs(getTownRoot(req));
 		res.json(result);
 	}),
 );

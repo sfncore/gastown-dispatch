@@ -189,26 +189,26 @@ export async function runDoctor(
 }
 
 export async function restartMayor(townRoot?: string): Promise<ActionResult> {
-	// Kill Mayor first
-	const killResult = await runGt(["kill", "mayor"], {
+	// Stop Mayor first (graceful shutdown)
+	const stopResult = await runGt(["mayor", "stop"], {
 		cwd: townRoot,
 		timeout: 30_000,
 	});
 
-	// Wait a moment for clean shutdown
-	await new Promise((resolve) => setTimeout(resolve, 1000));
+	// Wait for clean shutdown
+	await new Promise((resolve) => setTimeout(resolve, 1500));
 
-	// Respawn Mayor
-	const spawnResult = await runGt(["spawn", "mayor"], {
+	// Start Mayor again (detached tmux session)
+	const startResult = await runGt(["mayor", "start"], {
 		cwd: townRoot,
 		timeout: 60_000,
 	});
 
-	if (spawnResult.exitCode !== 0) {
+	if (startResult.exitCode !== 0) {
 		return {
 			success: false,
 			message: "Failed to restart Mayor",
-			error: spawnResult.stderr || killResult.stderr,
+			error: startResult.stderr || stopResult.stderr,
 		};
 	}
 
