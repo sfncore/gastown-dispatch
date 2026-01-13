@@ -74,32 +74,76 @@ class TerminalService {
 		let initialized = false;
 		let lastFrame = "";
 
-		// Step 1: Send full scrollback history ONCE
+		// Step 1: Send scrollback-only history, then visible frame separately
+		// This prevents duplicates when scrollback includes visible content
 		const sendInit = () => {
-			const proc = spawn("tmux", [
-				"capture-pane",
+			// First get the visible pane height
+			const sizeProc = spawn("tmux", [
+				"display-message",
 				"-t",
 				session.pane,
 				"-p",
-				"-e", // Include escape sequences
-				"-S",
-				"-", // From start of scrollback
-				"-E",
-				"-", // To end of scrollback
+				"#{pane_height}",
 			]);
 
-			let output = "";
-			proc.stdout?.on("data", (data: Buffer) => {
-				output += data.toString();
+			let paneHeight = 0;
+			sizeProc.stdout?.on("data", (data: Buffer) => {
+				paneHeight = parseInt(data.toString().trim(), 10) || 24;
 			});
 
-			proc.on("close", () => {
-				if (session.ws.readyState === WebSocket.OPEN) {
-					session.ws.send(JSON.stringify({ type: "init", data: output }));
-					initialized = true;
-					// Start polling for frames after init
-					startPolling();
-				}
+			sizeProc.on("close", () => {
+				// Now capture scrollback ONLY (excluding visible area)
+				// -S - means from start of scrollback
+				// -E -<paneHeight> means stop at -paneHeight lines (before visible)
+				const scrollbackProc = spawn("tmux", [
+					"capture-pane",
+					"-t",
+					session.pane,
+					"-p",
+					"-e", // Include escape sequences
+					"-S",
+					"-", // From start of scrollback
+					"-E",
+					`-${paneHeight + 1}`, // Stop before visible area
+				]);
+
+				let scrollback = "";
+				scrollbackProc.stdout?.on("data", (data: Buffer) => {
+					scrollback += data.toString();
+				});
+
+				scrollbackProc.on("close", () => {
+					// Then get the visible frame
+					const frameProc = spawn("tmux", [
+						"capture-pane",
+						"-t",
+						session.pane,
+						"-p",
+						"-e", // Include escape sequences
+						// No -S/-E = just visible pane
+					]);
+
+					let frame = "";
+					frameProc.stdout?.on("data", (data: Buffer) => {
+						frame += data.toString();
+					});
+
+					frameProc.on("close", () => {
+						if (session.ws.readyState === WebSocket.OPEN) {
+							// Send scrollback first (if any), then frame separately
+							// Client will handle scrollback without clearing, then frame with clear
+							if (scrollback.trim()) {
+								session.ws.send(
+									JSON.stringify({ type: "scrollback", data: scrollback }),
+								);
+							}
+							session.ws.send(JSON.stringify({ type: "frame", data: frame }));
+							lastFrame = frame;
+							initialized = true;
+							startPolling();
+						}
+					});
+				});
 			});
 		};
 

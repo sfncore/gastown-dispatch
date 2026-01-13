@@ -145,8 +145,9 @@ export function Terminal({
 			try {
 				const msg = JSON.parse(event.data);
 
-				if (msg.type === "init") {
-					// Full scrollback history - write it all (creates xterm scrollback)
+				if (msg.type === "scrollback") {
+					// Scrollback history only (not including visible area)
+					// Write to buffer without clearing
 					term.write(msg.data);
 				} else if (msg.type === "frame") {
 					// Pause frame updates while user is selecting text
@@ -218,13 +219,40 @@ export function Terminal({
 		window.addEventListener("resize", handleResize);
 
 		// ResizeObserver for container size changes - debounced
-		const resizeObserver = new ResizeObserver(handleResize);
+		const resizeObserver = new ResizeObserver((entries) => {
+			// Only trigger if container has real dimensions
+			const entry = entries[0];
+			if (
+				entry &&
+				entry.contentRect.width > 0 &&
+				entry.contentRect.height > 0
+			) {
+				handleResize();
+			}
+		});
 		resizeObserver.observe(terminalRef.current);
 
-		// Initial fit after layout settles
-		setTimeout(handleResize, 200);
+		// Initial fit - retry multiple times as CSS layout settles
+		// This handles flex containers that may not have final size immediately
+		const fitAttempts = [50, 150, 300, 500];
+		const fitTimeouts: ReturnType<typeof setTimeout>[] = [];
+		fitAttempts.forEach((delay) => {
+			fitTimeouts.push(
+				setTimeout(() => {
+					const container = terminalRef.current;
+					if (
+						container &&
+						container.clientWidth > 0 &&
+						container.clientHeight > 0
+					) {
+						handleResize();
+					}
+				}, delay),
+			);
+		});
 
 		return () => {
+			fitTimeouts.forEach(clearTimeout);
 			window.removeEventListener("resize", handleResize);
 			container.removeEventListener("mousedown", handleMouseDown);
 			document.removeEventListener("mouseup", handleMouseUp);

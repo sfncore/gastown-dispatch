@@ -96,8 +96,9 @@ function getCrewCount(rigName: string, townRoot: string): number {
 		const crewDir = path.join(townRoot, rigName, "crew");
 		if (!fs.existsSync(crewDir)) return 0;
 		const entries = fs.readdirSync(crewDir);
-		return entries.filter((e) =>
-			fs.statSync(path.join(crewDir, e)).isDirectory(),
+		return entries.filter(
+			(e) =>
+				!e.startsWith(".") && fs.statSync(path.join(crewDir, e)).isDirectory(),
 		).length;
 	} catch {
 		return 0;
@@ -114,7 +115,9 @@ export async function listRigs(townRoot?: string): Promise<RigListResponse> {
 
 	for (const [name, data] of Object.entries(rigsJson.rigs)) {
 		const witnessRunning = isWitnessRunning(name);
-		const memoryMB = witnessRunning ? getProcessMemoryMB(`gt-${name}-witness`) : 0;
+		const memoryMB = witnessRunning
+			? getProcessMemoryMB(`gt-${name}-witness`)
+			: 0;
 
 		const rig: RigInfo = {
 			name,

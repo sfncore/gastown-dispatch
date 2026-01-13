@@ -162,6 +162,7 @@ export default function Rigs() {
 			toggleRig(name, enable),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["rigs"] });
+			queryClient.invalidateQueries({ queryKey: ["rigs-enabled"] });
 		},
 	});
 
@@ -169,6 +170,7 @@ export default function Rigs() {
 		mutationFn: (enable: boolean) => bulkToggle(enable),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["rigs"] });
+			queryClient.invalidateQueries({ queryKey: ["rigs-enabled"] });
 		},
 	});
 
