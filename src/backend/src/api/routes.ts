@@ -289,6 +289,27 @@ router.post(
 	}),
 );
 
+// SSE endpoint for real-time updates
+router.get("/beads/events", (req: Request, res: Response) => {
+	res.setHeader("Content-Type", "text/event-stream");
+	res.setHeader("Cache-Control", "no-cache");
+	res.setHeader("Connection", "keep-alive");
+
+	// Send initial connection message
+	res.write("data: {\"type\":\"connected\"}\n\n");
+
+	// Keep connection alive with periodic heartbeat
+	const heartbeat = setInterval(() => {
+		res.write(": heartbeat\n\n");
+	}, 30000);
+
+	// Clean up on client disconnect
+	req.on("close", () => {
+		clearInterval(heartbeat);
+		res.end();
+	});
+});
+
 // =====================
 // Actions
 // =====================
