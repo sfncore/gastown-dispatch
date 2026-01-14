@@ -200,17 +200,12 @@ function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive =
 }
 
 // Rig station panel (like a processing unit control panel)
-function RigStation({ rig, agents, isActive }: {
+function RigStation({ rig, isActive }: {
 	rig: RigStatus;
-	agents: AgentRuntime[];
 	isActive: boolean;
 }) {
-	const rigAgents = agents.filter(a =>
-		a.address.includes(rig.name) ||
-		rig.polecats?.some(p => a.name.includes(p)) ||
-		rig.crews?.some(c => a.name.includes(c))
-	);
-	const workingAgents = rigAgents.filter(a => a.has_work);
+	// Count active hooks as proxy for active work on this rig
+	const activeHooks = rig.hooks?.filter((h) => h.has_work).length || 0;
 	const mq = rig.mq || { pending: 0, in_flight: 0, blocked: 0, state: "idle", health: "empty" };
 
 	const getHealthColor = (health: string) => {
@@ -260,9 +255,9 @@ function RigStation({ rig, agents, isActive }: {
 					digits={2}
 				/>
 				<DigitalCounter
-					value={workingAgents.length}
-					label="Active"
-					color={isActive && workingAgents.length > 0 ? "text-yellow-400" : "text-slate-600"}
+					value={activeHooks}
+					label="Hooks"
+					color={isActive && activeHooks > 0 ? "text-yellow-400" : "text-slate-600"}
 					digits={2}
 				/>
 			</div>
@@ -378,8 +373,8 @@ function WorkPipeline({ beads }: { beads: Bead[] }) {
 
 				{/* Stage: In Progress (Processing tank) */}
 				<div className="flex-1">
-					<div className="text-[10px] text-blue-400 uppercase mb-1 text-center font-bold">Processing</div>
-					<div className="h-20 bg-black/50 border-2 border-blue-500 rounded-lg relative overflow-hidden">
+					<div className="text-[10px] text-blue-400 uppercase mb-1 text-center font-bold" title="Beads with status 'in_progress' or 'hooked'">Processing</div>
+					<div className="h-20 bg-black/50 border-2 border-blue-500 rounded-lg relative overflow-hidden" title="Beads being worked on or claimed by workers">
 						{/* Tank with animated bubbles effect */}
 						<div
 							className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-blue-600 to-blue-400 transition-all"
@@ -617,7 +612,7 @@ function ControlHeader({ status, deaconRunning, onRefresh, onStart, onShutdown, 
 						</span>
 						<span className="text-slate-500 text-xs">WORKERS</span>
 					</div>
-					<div className="flex items-center gap-1 text-sm">
+					<div className="flex items-center gap-1 text-sm" title="Running hook processes">
 						<Zap size={14} className="text-yellow-400" />
 						<span className="font-mono text-slate-300">{status?.summary.active_hooks || 0}</span>
 						<span className="text-slate-500 text-xs">HOOKS</span>
@@ -670,11 +665,13 @@ function ControlHeader({ status, deaconRunning, onRefresh, onStart, onShutdown, 
 }
 
 // Industrial control room visualization
-function AgentFlow({ agents, rigs }: { agents: AgentRuntime[]; rigs: RigStatus[] }) {
+function AgentFlow({ agents, rigs, status }: { agents: AgentRuntime[]; rigs: RigStatus[]; status: TownStatus }) {
 	const mayor = agents.find(a => a.name === "mayor");
 	const deacon = agents.find(a => a.name === "deacon");
-	const totalWorkers = agents.filter(a => a.role === "polecat" || a.role === "crew").length;
-	const activeWorkers = agents.filter(a => (a.role === "polecat" || a.role === "crew") && a.has_work).length;
+	// Use summary counts instead of filtering agents (which only has mayor/deacon)
+	const totalWorkers = (status.summary.polecat_count || 0) + (status.summary.crew_count || 0);
+	// Count active rigs (those with workers allocated) as proxy for active workers
+	const activeRigs = rigs.filter(r => (r.polecat_count > 0 || r.crew_count > 0)).length;
 
 	const getMayorStatus = () => {
 		if (!mayor) return "offline";
@@ -794,16 +791,16 @@ function AgentFlow({ agents, rigs }: { agents: AgentRuntime[]; rigs: RigStatus[]
 					<div className="w-20 h-14 rounded border-2 border-slate-600 bg-slate-800 flex flex-col items-center justify-center p-1">
 						<div className="flex items-center gap-1">
 							<Users size={12} className="text-blue-400" />
-							<span className="text-sm font-bold font-mono text-blue-400">{rigs.length}</span>
-							<span className="text-[8px] text-slate-500">RIGS</span>
+							<span className="text-sm font-bold font-mono text-blue-400">{totalWorkers}</span>
+							<span className="text-[8px] text-slate-500">WORK</span>
 						</div>
 						<div className="w-full flex justify-between text-[8px] mt-1">
 							<div className="text-center">
-								<div className="font-mono text-green-400 text-sm">{activeWorkers}</div>
+								<div className="font-mono text-green-400 text-sm">{activeRigs}</div>
 								<div className="text-slate-500">ACT</div>
 							</div>
 							<div className="text-center">
-								<div className="font-mono text-slate-400 text-sm">{totalWorkers - activeWorkers}</div>
+								<div className="font-mono text-slate-400 text-sm">{rigs.length - activeRigs}</div>
 								<div className="text-slate-500">IDLE</div>
 							</div>
 						</div>
@@ -977,7 +974,7 @@ export default function Overview() {
 					{/* Center panel - Main schematic */}
 					<div className="col-span-6 flex flex-col gap-4">
 						{/* Agent hierarchy */}
-						<AgentFlow agents={status.agents} rigs={status.rigs} />
+						<AgentFlow agents={status.agents} rigs={status.rigs} status={status} />
 
 						{/* Work pipeline */}
 						<WorkPipeline beads={beads} />
@@ -1025,7 +1022,6 @@ export default function Overview() {
 								<RigStation
 									key={rig.name}
 									rig={rig}
-									agents={status.agents}
 									isActive={rig.polecat_count > 0 || rig.crew_count > 0}
 								/>
 							))
