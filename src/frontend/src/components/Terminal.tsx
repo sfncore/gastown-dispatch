@@ -89,14 +89,23 @@ export function Terminal({
 		term.open(terminalRef.current);
 		fitAddon.fit();
 
-		// Enable copy-on-select (macOS terminal behavior)
+		// Enable copy-on-select with DEBUG LOGGING
 		term.onSelectionChange(() => {
+			console.log('[Terminal] Selection changed event fired');
 			const selection = term.getSelection();
+			console.log('[Terminal] Selection length:', selection?.length, 'chars');
+			console.log('[Terminal] Selection text:', selection?.substring(0, 50));
+
 			if (selection) {
-				// Auto-copy selection to clipboard
-				navigator.clipboard.writeText(selection).catch(() => {
-					// Ignore clipboard errors (e.g., permissions)
-				});
+				navigator.clipboard.writeText(selection)
+					.then(() => {
+						console.log('[Terminal] ✓ Successfully copied to clipboard');
+					})
+					.catch(err => {
+						console.error('[Terminal] ✗ Clipboard write failed:', err);
+					});
+			} else {
+				console.log('[Terminal] No selection to copy');
 			}
 		});
 
