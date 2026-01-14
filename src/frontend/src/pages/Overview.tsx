@@ -661,8 +661,8 @@ function ControlHeader({ status, deaconRunning, onRefresh, onStart, onShutdown, 
 
 // Industrial control room visualization
 function AgentFlow({ agents, rigs }: { agents: AgentRuntime[]; rigs: RigStatus[] }) {
-	const mayor = agents.find(a => a.role === "mayor");
-	const deacon = agents.find(a => a.role === "deacon");
+	const mayor = agents.find(a => a.name === "mayor");
+	const deacon = agents.find(a => a.name === "deacon");
 	const totalWorkers = agents.filter(a => a.role === "polecat" || a.role === "crew").length;
 	const activeWorkers = agents.filter(a => (a.role === "polecat" || a.role === "crew") && a.has_work).length;
 
@@ -870,7 +870,7 @@ export default function Overview() {
 	// Determine if we have a valid connection
 	const isConnected = statusResponse?.initialized && statusResponse.status;
 	const status = statusResponse?.status;
-	const deaconRunning = status?.agents?.some((a: AgentRuntime) => a.role === "deacon" && a.running) ?? false;
+	const deaconRunning = status?.agents?.some((a: AgentRuntime) => a.name === "deacon" && a.running) ?? false;
 
 	// Show disconnected state if not connected
 	if (!isConnected || !status) {

@@ -22,6 +22,7 @@ export async function getTownStatus(
 	try {
 		const status = await runGtJson<TownStatus>(["status"], {
 			cwd: townRoot,
+			timeout: 60_000, // Increase timeout to 60s for large workspaces
 		});
 
 		statusCache = { data: status, timestamp: now };

@@ -37,8 +37,8 @@ export function SystemSchematic() {
 	const status = response.status;
 
 	// Find agents
-	const mayor = status?.agents.find((a) => a.role === "mayor");
-	const deacon = status?.agents.find((a) => a.role === "deacon");
+	const mayor = status?.agents.find((a) => a.name === "mayor");
+	const deacon = status?.agents.find((a) => a.name === "deacon");
 	const rigs = status?.rigs || [];
 
 	// Calculate positions
