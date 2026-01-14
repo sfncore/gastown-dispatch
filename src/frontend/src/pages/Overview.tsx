@@ -80,7 +80,7 @@ function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive =
 	return (
 		<div className={cn("flex flex-col items-center flex-shrink-0", !isRigActive && "opacity-50")}>
 			<div className={cn(
-				"text-[10px] uppercase mb-2 font-bold tracking-wide text-center max-w-[80px] truncate",
+				"text-[8px] sm:text-[9px] lg:text-[10px] uppercase mb-1 sm:mb-1.5 lg:mb-2 font-bold tracking-wide text-center max-w-[50px] sm:max-w-[60px] lg:max-w-[80px] truncate",
 				!isRigActive ? "text-slate-600" :
 				hasBlocked ? "text-red-400" :
 				isActive ? "text-blue-400" :
@@ -92,7 +92,7 @@ function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive =
 			{/* Silo container */}
 			<div className="relative">
 				{/* Top cone (hopper style) */}
-				<div className="w-20 h-4 relative">
+				<div className="w-12 sm:w-16 lg:w-20 h-3 sm:h-3.5 lg:h-4 relative">
 					<svg viewBox="0 0 80 16" className="w-full h-full">
 						<path d="M0,16 L40,0 L80,16 Z" fill={isRigActive ? "#1e293b" : "#0f172a"} stroke={isRigActive ? "#475569" : "#334155"} strokeWidth="1" />
 					</svg>
@@ -100,7 +100,7 @@ function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive =
 
 				{/* Main silo body */}
 				<div className={cn(
-					"relative w-20 h-28 border-2 rounded-b-lg overflow-hidden",
+					"relative w-12 sm:w-16 lg:w-20 h-20 sm:h-24 lg:h-28 border-2 rounded-b-lg overflow-hidden",
 					!isRigActive ? "border-slate-700 bg-slate-900/30" :
 					hasBlocked ? "border-red-500 bg-red-950/30" :
 					isActive ? "border-blue-500 bg-blue-950/30" :
@@ -169,7 +169,7 @@ function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive =
 							className="absolute left-0 right-0 border-t border-slate-500/30"
 							style={{ bottom: `${level}%` }}
 						>
-							<span className="absolute right-0.5 -top-1.5 text-[7px] text-slate-500 font-mono">{level}%</span>
+							<span className="absolute right-0.5 -top-1.5 text-[5px] sm:text-[6px] lg:text-[7px] text-slate-500 font-mono hidden sm:inline">{level}%</span>
 						</div>
 					))}
 
@@ -187,9 +187,9 @@ function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive =
 			</div>
 
 			{/* Stats readout */}
-			<div className="mt-2 text-center">
-				<div className="font-mono text-base font-bold text-slate-200">{total}</div>
-				<div className="flex gap-1.5 text-[9px] justify-center font-mono">
+			<div className="mt-1 sm:mt-1.5 lg:mt-2 text-center">
+				<div className="font-mono text-sm sm:text-base font-bold text-slate-200">{total}</div>
+				<div className="flex gap-1 sm:gap-1.5 text-[7px] sm:text-[8px] lg:text-[9px] justify-center font-mono">
 					<span className="text-green-400">{pending}p</span>
 					<span className="text-blue-400">{inFlight}f</span>
 					<span className="text-red-400">{blocked}b</span>
@@ -993,7 +993,7 @@ export default function Overview() {
 								{sortedRigs.length === 0 ? (
 									<div className="text-sm text-slate-500">No rigs configured</div>
 								) : (
-									<div className="grid grid-cols-9 gap-4 justify-items-center">
+									<div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9 gap-2 sm:gap-3 lg:gap-4 justify-items-center">
 										{sortedRigs.map((rig: RigStatus) => (
 											<QueueLevel
 												key={rig.name}
