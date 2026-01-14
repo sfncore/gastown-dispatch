@@ -550,14 +550,13 @@ function AlarmPanel({ agents, rigs }: { agents: AgentRuntime[]; rigs: RigStatus[
 }
 
 // Main control panel header
-function ControlHeader({ status, deaconRunning, onRefresh, onStart, onShutdown, isFetching, demoMode }: {
+function ControlHeader({ status, deaconRunning, onRefresh, onStart, onShutdown, isFetching }: {
 	status?: TownStatus;
 	deaconRunning: boolean;
 	onRefresh: () => void;
 	onStart: () => void;
 	onShutdown: () => void;
 	isFetching: boolean;
-	demoMode?: boolean;
 }) {
 	const [time, setTime] = useState(new Date());
 
@@ -592,13 +591,6 @@ function ControlHeader({ status, deaconRunning, onRefresh, onStart, onShutdown, 
 					)}>
 						{deaconRunning ? "ONLINE" : "OFFLINE"}
 					</div>
-
-					{/* Demo mode indicator */}
-					{demoMode && (
-						<div className="px-3 py-1 rounded text-xs font-bold uppercase tracking-wider bg-purple-900/50 text-purple-400 border border-purple-700 animate-pulse">
-							DEMO MODE
-						</div>
-					)}
 				</div>
 
 				{/* Center: Summary counters */}
@@ -812,46 +804,7 @@ function AgentFlow({ agents, rigs }: { agents: AgentRuntime[]; rigs: RigStatus[]
 	);
 }
 
-// Demo data for when Gas Town is not connected
-const DEMO_STATUS: TownStatus = {
-	name: "DEMO TOWN",
-	location: "/demo/gastown",
-	agents: [
-		{ name: "mayor", address: "mayor@demo", session: "s1", role: "mayor", running: true, has_work: true, work_title: "Coordinating tasks", unread_mail: 2 },
-		{ name: "deacon", address: "deacon@demo", session: "s2", role: "deacon", running: true, has_work: false, unread_mail: 0 },
-		{ name: "polecat-1", address: "polecat-1@rig-alpha", session: "s3", role: "polecat", running: true, has_work: true, work_title: "Building feature", unread_mail: 0 },
-		{ name: "polecat-2", address: "polecat-2@rig-alpha", session: "s4", role: "polecat", running: true, has_work: false, unread_mail: 0 },
-		{ name: "crew-1", address: "crew-1@rig-beta", session: "s5", role: "crew", running: true, has_work: true, work_title: "Code review", unread_mail: 1 },
-	],
-	rigs: [
-		{ name: "rig-alpha", polecats: ["polecat-1", "polecat-2"], polecat_count: 2, crews: [], crew_count: 0, has_witness: true, has_refinery: false, mq: { pending: 5, in_flight: 2, blocked: 0, state: "processing", health: "healthy" } },
-		{ name: "rig-beta", polecats: [], polecat_count: 0, crews: ["crew-1"], crew_count: 1, has_witness: true, has_refinery: true, mq: { pending: 3, in_flight: 1, blocked: 1, state: "blocked", health: "stale" } },
-		{ name: "rig-gamma", polecats: [], polecat_count: 0, crews: [], crew_count: 0, has_witness: false, has_refinery: false, mq: { pending: 0, in_flight: 0, blocked: 0, state: "idle", health: "empty" } },
-	],
-	summary: { rig_count: 3, polecat_count: 2, crew_count: 1, witness_count: 2, refinery_count: 1, active_hooks: 3 },
-};
-
-const DEMO_CONVOYS: Convoy[] = [
-	{ id: "conv-001", title: "Feature batch", status: "open", created_at: new Date().toISOString(), completed: 3, total: 5 },
-	{ id: "conv-002", title: "Bug fixes", status: "open", created_at: new Date().toISOString(), completed: 7, total: 10 },
-	{ id: "conv-003", title: "Refactoring", status: "open", created_at: new Date().toISOString(), completed: 1, total: 3 },
-];
-
-const DEMO_BEADS: Bead[] = [
-	{ id: "b1", title: "Add login", status: "closed", type: "feature", priority: 1, created_at: new Date().toISOString() },
-	{ id: "b2", title: "Fix bug", status: "closed", type: "bug", priority: 2, created_at: new Date().toISOString() },
-	{ id: "b3", title: "Update docs", status: "closed", type: "task", priority: 3, created_at: new Date().toISOString() },
-	{ id: "b4", title: "Refactor API", status: "in_progress", type: "task", priority: 2, created_at: new Date().toISOString() },
-	{ id: "b5", title: "Add tests", status: "in_progress", type: "task", priority: 2, created_at: new Date().toISOString() },
-	{ id: "b6", title: "New feature", status: "hooked", type: "feature", priority: 1, created_at: new Date().toISOString() },
-	{ id: "b7", title: "Performance", status: "open", type: "task", priority: 2, created_at: new Date().toISOString() },
-	{ id: "b8", title: "Security fix", status: "open", type: "bug", priority: 1, created_at: new Date().toISOString() },
-	{ id: "b9", title: "UI polish", status: "open", type: "chore", priority: 3, created_at: new Date().toISOString() },
-	{ id: "b10", title: "Database", status: "open", type: "feature", priority: 2, created_at: new Date().toISOString() },
-];
-
 export default function Overview() {
-	const [demoMode, setDemoMode] = useState(false);
 
 	const {
 		data: statusResponse,
@@ -871,7 +824,6 @@ export default function Overview() {
 		queryFn: () => getConvoys("open"),
 		refetchInterval: 10_000,
 		retry: 1,
-		enabled: !demoMode,
 	});
 
 	const { data: beads = [] } = useQuery({
@@ -879,15 +831,7 @@ export default function Overview() {
 		queryFn: () => getBeads({ limit: 100 }),
 		refetchInterval: 10_000,
 		retry: 1,
-		enabled: !demoMode,
 	});
-
-	// Auto-enable demo mode if status fails
-	useEffect(() => {
-		if (statusError || (statusResponse && !statusResponse.initialized)) {
-			setDemoMode(true);
-		}
-	}, [statusError, statusResponse]);
 
 	const handleStart = async () => {
 		await startTown();
@@ -901,14 +845,18 @@ export default function Overview() {
 		}
 	};
 
-	// Handle loading state - but only for first 2 seconds, then show demo
-	const [loadingTimeout, setLoadingTimeout] = useState(false);
+	// Allow 3 seconds for initial load before showing timeout state
+	const [loadTimeout, setLoadTimeout] = useState(false);
 	useEffect(() => {
-		const timer = setTimeout(() => setLoadingTimeout(true), 2000);
-		return () => clearTimeout(timer);
-	}, []);
+		if (statusLoading) {
+			const timer = setTimeout(() => setLoadTimeout(true), 3000);
+			return () => clearTimeout(timer);
+		}
+		setLoadTimeout(false);
+	}, [statusLoading]);
 
-	if (statusLoading && !loadingTimeout) {
+	// Show loading while initial fetch is in progress (but only for 3 seconds)
+	if (statusLoading && !loadTimeout) {
 		return (
 			<div className="h-full flex items-center justify-center bg-slate-900">
 				<div className="flex flex-col items-center gap-4">
@@ -919,12 +867,46 @@ export default function Overview() {
 		);
 	}
 
-	// Use demo data if in demo mode, API failed, or still loading after timeout
-	const useDemo = demoMode || !!statusError || !statusResponse?.initialized || (statusLoading && loadingTimeout);
-	const status = useDemo ? DEMO_STATUS : statusResponse!.status!;
-	const displayConvoys = useDemo ? DEMO_CONVOYS : convoys;
-	const displayBeads = useDemo ? DEMO_BEADS : beads;
-	const deaconRunning = status.agents.some(a => a.role === "deacon" && a.running);
+	// Determine if we have a valid connection
+	const isConnected = statusResponse?.initialized && statusResponse.status;
+	const status = statusResponse?.status;
+	const deaconRunning = status?.agents?.some((a: AgentRuntime) => a.role === "deacon" && a.running) ?? false;
+
+	// Show disconnected state if not connected
+	if (!isConnected || !status) {
+		return (
+			<div className="h-full flex flex-col bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+				<ControlHeader
+					status={undefined}
+					deaconRunning={false}
+					onRefresh={() => refetchStatus()}
+					onStart={handleStart}
+					onShutdown={handleShutdown}
+					isFetching={isFetching}
+				/>
+				<div className="flex-1 flex items-center justify-center">
+					<div className="flex flex-col items-center gap-4 text-center">
+						<div className="w-20 h-20 rounded-full border-4 border-red-500/50 flex items-center justify-center">
+							<Radio size={40} className="text-red-400" />
+						</div>
+						<h2 className="text-xl font-bold text-slate-200">Gas Town Not Connected</h2>
+						<p className="text-slate-400 max-w-md">
+							{statusError
+								? "Unable to connect to Gas Town backend. Make sure the server is running."
+								: "Gas Town is not initialized. Click START to initialize the town."}
+						</p>
+						<button
+							onClick={handleStart}
+							className="flex items-center gap-2 px-6 py-3 rounded-lg bg-green-900 hover:bg-green-800 border border-green-700 transition-colors mt-4"
+						>
+							<Play size={20} />
+							<span className="font-bold">START GAS TOWN</span>
+						</button>
+					</div>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="h-full flex flex-col bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
@@ -936,7 +918,6 @@ export default function Overview() {
 				onStart={handleStart}
 				onShutdown={handleShutdown}
 				isFetching={isFetching}
-				demoMode={useDemo}
 			/>
 
 			{/* Main dashboard area */}
@@ -952,16 +933,16 @@ export default function Overview() {
 								<Truck size={16} className="text-purple-400" />
 								<span className="text-sm font-semibold text-slate-200">Active Convoys</span>
 								<span className="text-xs px-1.5 py-0.5 bg-purple-900 text-purple-300 rounded-full">
-									{displayConvoys.length}
+									{convoys.length}
 								</span>
 							</div>
 							<div className="space-y-2 max-h-[calc(100%-2rem)] overflow-y-auto">
-								{displayConvoys.length === 0 ? (
+								{convoys.length === 0 ? (
 									<div className="text-xs text-slate-500 text-center py-4">
 										No active convoys
 									</div>
 								) : (
-									displayConvoys.map(convoy => (
+									convoys.map((convoy: Convoy) => (
 										<ConvoyBatch key={convoy.id} convoy={convoy} />
 									))
 								)}
@@ -975,7 +956,7 @@ export default function Overview() {
 						<AgentFlow agents={status.agents} rigs={status.rigs} />
 
 						{/* Work pipeline */}
-						<WorkPipeline beads={displayBeads} />
+						<WorkPipeline beads={beads} />
 
 						{/* Queue levels */}
 						<div className="bg-slate-900/60 border border-slate-700 rounded-lg p-4 flex-1">
@@ -987,7 +968,7 @@ export default function Overview() {
 								{status.rigs.length === 0 ? (
 									<div className="text-sm text-slate-500">No rigs configured</div>
 								) : (
-									status.rigs.map(rig => (
+									status.rigs.map((rig: RigStatus) => (
 										<QueueLevel
 											key={rig.name}
 											label={rig.name.slice(0, 8)}
@@ -1012,7 +993,7 @@ export default function Overview() {
 								<div className="text-sm text-slate-500 text-center">No rigs configured</div>
 							</div>
 						) : (
-							status.rigs.map(rig => (
+							status.rigs.map((rig: RigStatus) => (
 								<RigStation
 									key={rig.name}
 									rig={rig}
