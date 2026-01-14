@@ -988,20 +988,12 @@ export default function Overview() {
 								<Activity size={16} className="text-cyan-400" />
 								<span className="text-sm font-semibold text-slate-200">Message Queues</span>
 								<span className="text-xs text-slate-400">({status.rigs.length} rigs)</span>
-								{/* Responsive breakpoint indicator */}
-								<span className="ml-auto text-[10px] font-mono text-slate-500">
-									<span className="sm:hidden">XS</span>
-									<span className="hidden sm:inline md:hidden">SM</span>
-									<span className="hidden md:inline lg:hidden">MD</span>
-									<span className="hidden lg:inline xl:hidden">LG</span>
-									<span className="hidden xl:inline">XL</span>
-								</span>
 							</div>
-							<div className="overflow-y-auto flex-1">
+							<div className="overflow-y-auto flex-1 px-2">
 								{sortedRigs.length === 0 ? (
 									<div className="text-sm text-slate-500">No rigs configured</div>
 								) : (
-									<div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-4 sm:gap-5 md:gap-5 lg:gap-6 justify-items-center">
+									<div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-6 gap-4 sm:gap-5 md:gap-6 lg:gap-8 justify-items-center py-2">
 										{sortedRigs.map((rig: RigStatus) => (
 											<QueueLevel
 												key={rig.name}
