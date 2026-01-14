@@ -41,10 +41,10 @@ export function Terminal({
 			lineHeight: 1.2,
 			letterSpacing: 0,
 			scrollOnUserInput: true,
-			// Enable text selection with modifier keys even when apps use mouse mode
-			// On macOS: hold Option/Alt to select text
-			// On Windows/Linux: hold Shift to select text
-			macOptionClickForcesSelection: true,
+			// Enable text selection without modifier keys
+			// Plain drag now selects text and auto-copies to clipboard
+			// Safe for this use case: terminal only observes tmux (no mouse-mode apps)
+			macOptionClickForcesSelection: false,
 			// Enable word selection on right-click (standard macOS behavior)
 			rightClickSelectsWord: true,
 			theme: {
