@@ -9,6 +9,9 @@ class TerminalService {
 	attach(server: Server): void {
 		this.wss = new WebSocketServer({ server, path: "/terminal" });
 
+		// Start timeout checker for idle PTY sessions
+		ptyService.startTimeoutChecker();
+
 		this.wss.on("connection", (ws, req) => {
 			// Parse pane from query string: /terminal?pane=hq-mayor
 			const url = new URL(req.url || "", `http://${req.headers.host}`);

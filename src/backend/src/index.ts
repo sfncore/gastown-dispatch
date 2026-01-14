@@ -7,6 +7,7 @@ import { createServer } from "http";
 import routes from "./api/routes.js";
 import streamingRoutes from "./api/streaming.js";
 import { terminalService } from "./services/terminal.js";
+import { ptyService } from "./services/pty.js";
 
 const app = express();
 const server = createServer(app);
@@ -51,4 +52,32 @@ server.listen(PORT, () => {
 	if (process.env.GT_TOWN_ROOT) {
 		console.log(`Gas Town root: ${process.env.GT_TOWN_ROOT}`);
 	}
+});
+
+// Graceful shutdown handling
+const shutdown = (signal: string) => {
+	console.log(`\nReceived ${signal}, cleaning up PTY sessions...`);
+	ptyService.cleanupAll();
+	server.close(() => {
+		console.log("Server closed");
+		process.exit(0);
+	});
+	// Force exit after 5 seconds if graceful shutdown fails
+	setTimeout(() => {
+		console.error("Forced shutdown after timeout");
+		process.exit(1);
+	}, 5000);
+};
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("uncaughtException", (err) => {
+	console.error("Uncaught exception:", err);
+	ptyService.cleanupAll();
+	process.exit(1);
+});
+process.on("unhandledRejection", (reason, promise) => {
+	console.error("Unhandled rejection at:", promise, "reason:", reason);
+	ptyService.cleanupAll();
+	process.exit(1);
 });
