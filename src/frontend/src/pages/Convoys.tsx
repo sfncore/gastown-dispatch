@@ -18,6 +18,8 @@ import {
 	Trash2,
 	Server,
 	Loader2,
+	Timer,
+	Pause,
 } from "lucide-react";
 import {
 	getConvoys,
@@ -29,7 +31,7 @@ import {
 	getSynthesisStatus,
 	startSynthesis,
 } from "@/lib/api";
-import { cn, formatRelativeTime, formatDate } from "@/lib/utils";
+import { cn, formatRelativeTime, formatDate, calculateConvoyETA, type ConvoyETA } from "@/lib/utils";
 import { useConvoySubscription } from "@/hooks/useConvoySubscription";
 import type { Convoy, TrackedIssueDetail, ConvoyDetail } from "@/types/api";
 
@@ -104,6 +106,146 @@ function MiniProgress({
 	);
 }
 
+// ETA badge for convoy cards
+function ETABadge({ eta }: { eta: ConvoyETA }) {
+	if (eta.estimatedMinutes === 0) {
+		return null; // Complete, don't show ETA
+	}
+
+	if (eta.isBlocked) {
+		return (
+			<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-amber-900/30 text-amber-300">
+				<Pause size={10} />
+				{eta.short}
+			</span>
+		);
+	}
+
+	return (
+		<span
+			className={cn(
+				"inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs",
+				eta.confidence === "none"
+					? "bg-gray-800 text-gray-400"
+					: eta.blockedCount > 0
+						? "bg-amber-900/20 text-amber-300"
+						: "bg-blue-900/20 text-blue-300",
+			)}
+			title={`ETA: ${eta.display} • ${eta.wipCount} WIP, ${eta.blockedCount} blocked`}
+		>
+			<Timer size={10} />
+			{eta.short}
+		</span>
+	);
+}
+
+// ETA panel for convoy detail view
+function ConvoyETAPanel({ detail }: { detail: ConvoyDetail }) {
+	const eta = calculateConvoyETA({
+		total: detail.total || 0,
+		completed: detail.completed || 0,
+		issues: detail.tracked_issues?.map((i) => ({
+			status: i.status,
+			worker: i.worker,
+			worker_age: i.worker_age,
+		})) || [],
+	});
+
+	// Don't show if complete
+	if (eta.estimatedMinutes === 0) return null;
+
+	return (
+		<div
+			className={cn(
+				"rounded-lg p-4 border",
+				eta.isBlocked
+					? "bg-amber-900/20 border-amber-500/50"
+					: "bg-blue-900/20 border-blue-500/50",
+			)}
+		>
+			<div className="flex items-center justify-between mb-3">
+				<div className="flex items-center gap-2">
+					<Timer
+						size={18}
+						className={eta.isBlocked ? "text-amber-400" : "text-blue-400"}
+					/>
+					<h3
+						className={cn(
+							"font-medium",
+							eta.isBlocked ? "text-amber-300" : "text-blue-300",
+						)}
+					>
+						Estimated Completion
+					</h3>
+				</div>
+				<span
+					className={cn(
+						"text-lg font-semibold",
+						eta.isBlocked ? "text-amber-300" : "text-blue-300",
+					)}
+				>
+					{eta.display}
+				</span>
+			</div>
+
+			<div className="grid grid-cols-3 gap-4 text-sm">
+				<div>
+					<span className="text-gt-muted block text-xs">Active Workers</span>
+					<span
+						className={cn(
+							"font-medium",
+							eta.activeCount > 0 ? "text-green-400" : "text-gray-400",
+						)}
+					>
+						{eta.activeCount}
+					</span>
+				</div>
+				<div>
+					<span className="text-gt-muted block text-xs">In Progress</span>
+					<span
+						className={cn(
+							"font-medium",
+							eta.wipCount > 0 ? "text-amber-400" : "text-gray-400",
+						)}
+					>
+						{eta.wipCount}
+					</span>
+				</div>
+				<div>
+					<span className="text-gt-muted block text-xs">Waiting</span>
+					<span
+						className={cn(
+							"font-medium",
+							eta.blockedCount > 0 ? "text-red-400" : "text-gray-400",
+						)}
+					>
+						{eta.blockedCount}
+					</span>
+				</div>
+			</div>
+
+			{eta.isBlocked && (
+				<p className="mt-3 text-xs text-amber-200/70">
+					No active workers. Assign workers to waiting issues to continue
+					progress.
+				</p>
+			)}
+
+			{eta.confidence !== "none" && (
+				<p className="mt-3 text-xs text-gt-muted">
+					Estimate based on{" "}
+					{eta.confidence === "high"
+						? "historical completion rate"
+						: eta.confidence === "medium"
+							? "current work patterns"
+							: "default estimates"}
+					. Actual time may vary.
+				</p>
+			)}
+		</div>
+	);
+}
+
 // Issue status icon
 function IssueStatusIcon({ status }: { status: string }) {
 	switch (status) {
@@ -130,6 +272,19 @@ function ConvoyCard({
 	const workerCount = convoy.tracked_issues?.filter(
 		(i) => i.status === "in_progress" || i.status === "hooked",
 	).length;
+
+	// Calculate ETA from tracked issues
+	const eta = calculateConvoyETA({
+		total: convoy.total || 0,
+		completed: convoy.completed || 0,
+		issues: convoy.tracked_issues?.map((i) => ({
+			status: i.status,
+			worker: i.assignee, // Use assignee as proxy for worker in list view
+		})) || [],
+	});
+
+	// Don't show ETA for closed convoys
+	const showETA = convoy.status === "open" && (convoy.total || 0) > 0;
 
 	return (
 		<button
@@ -162,7 +317,10 @@ function ConvoyCard({
 			</div>
 
 			<div className="mt-2 flex items-center justify-between gap-2">
-				<ConvoyStatusBadge status={convoy.status} />
+				<div className="flex items-center gap-2">
+					<ConvoyStatusBadge status={convoy.status} />
+					{showETA && <ETABadge eta={eta} />}
+				</div>
 				<MiniProgress
 					completed={convoy.completed || 0}
 					total={convoy.total || 0}
@@ -318,7 +476,7 @@ function SynthesisPanel({
 
 	// Simple tracking convoy (no synthesis needed)
 	if (!needsSynthesis) {
-		const allComplete = detail.total > 0 && detail.completed === detail.total;
+		const allComplete = (detail.total ?? 0) > 0 && detail.completed === detail.total;
 
 		return (
 			<div
@@ -924,6 +1082,11 @@ function ConvoyDetailPanel({
 						</div>
 					</div>
 				</div>
+
+				{/* ETA Estimate */}
+				{detail.status === "open" && total > 0 && (
+					<ConvoyETAPanel detail={detail} />
+				)}
 
 				{/* Metadata */}
 				<div className="grid grid-cols-2 gap-4 text-sm">
