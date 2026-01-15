@@ -266,20 +266,6 @@ function RigStation({ rig, isActive }: {
 				/>
 			</div>
 
-			{/* Capacity allocation */}
-			<div className="flex items-center justify-between text-xs">
-				<div className="flex items-center gap-1">
-					<span className="text-slate-500">Capacity:</span>
-					<span className="text-slate-400 font-mono">
-						{rig.polecat_count}P {rig.crew_count}C
-					</span>
-				</div>
-				{unreadMail > 0 && (
-					<div className="flex items-center gap-1">
-						<span className="text-purple-400 font-mono text-xs">{unreadMail}✉</span>
-					</div>
-				)}
-			</div>
 
 			{/* Feature indicators */}
 			<div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-700">
