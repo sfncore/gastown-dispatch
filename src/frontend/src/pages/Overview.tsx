@@ -847,15 +847,6 @@ export default function Overview() {
 		}
 	};
 
-	// Allow 3 seconds for initial load before showing timeout state
-	const [loadTimeout, setLoadTimeout] = useState(false);
-	useEffect(() => {
-		if (statusLoading) {
-			const timer = setTimeout(() => setLoadTimeout(true), 3000);
-			return () => clearTimeout(timer);
-		}
-		setLoadTimeout(false);
-	}, [statusLoading]);
 
 	// Determine if we have a valid connection - must be before conditional returns
 	const isConnected = statusResponse?.initialized && statusResponse.status;
@@ -876,8 +867,8 @@ export default function Overview() {
 		});
 	}, [status?.rigs]);
 
-	// Show loading while initial fetch is in progress (but only for 3 seconds)
-	if (statusLoading && !loadTimeout) {
+	// Show loading while initial fetch is in progress
+	if (statusLoading) {
 		return (
 			<div className="h-full flex items-center justify-center bg-slate-900">
 				<div className="flex flex-col items-center gap-4">
@@ -888,7 +879,7 @@ export default function Overview() {
 		);
 	}
 
-	// Show disconnected state if not connected
+	// Show disconnected state if fetch completed but not connected
 	if (!isConnected || !status) {
 		return (
 			<div className="h-full flex flex-col bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
