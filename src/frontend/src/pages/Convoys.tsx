@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
 	RefreshCw,
@@ -19,6 +18,8 @@ import {
 	Trash2,
 	Server,
 	Loader2,
+	Timer,
+	Pause,
 } from "lucide-react";
 import {
 	getConvoys,
@@ -30,7 +31,7 @@ import {
 	getSynthesisStatus,
 	startSynthesis,
 } from "@/lib/api";
-import { cn, formatRelativeTime, formatDate } from "@/lib/utils";
+import { cn, formatRelativeTime, formatDate, calculateConvoyETA, type ConvoyETA } from "@/lib/utils";
 import { useConvoySubscription } from "@/hooks/useConvoySubscription";
 import type { Convoy, TrackedIssueDetail, ConvoyDetail } from "@/types/api";
 
@@ -105,6 +106,146 @@ function MiniProgress({
 	);
 }
 
+// ETA badge for convoy cards
+function ETABadge({ eta }: { eta: ConvoyETA }) {
+	if (eta.estimatedMinutes === 0) {
+		return null; // Complete, don't show ETA
+	}
+
+	if (eta.isBlocked) {
+		return (
+			<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-amber-900/30 text-amber-300">
+				<Pause size={10} />
+				{eta.short}
+			</span>
+		);
+	}
+
+	return (
+		<span
+			className={cn(
+				"inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs",
+				eta.confidence === "none"
+					? "bg-gray-800 text-gray-400"
+					: eta.blockedCount > 0
+						? "bg-amber-900/20 text-amber-300"
+						: "bg-blue-900/20 text-blue-300",
+			)}
+			title={`ETA: ${eta.display} • ${eta.wipCount} WIP, ${eta.blockedCount} blocked`}
+		>
+			<Timer size={10} />
+			{eta.short}
+		</span>
+	);
+}
+
+// ETA panel for convoy detail view
+function ConvoyETAPanel({ detail }: { detail: ConvoyDetail }) {
+	const eta = calculateConvoyETA({
+		total: detail.total || 0,
+		completed: detail.completed || 0,
+		issues: detail.tracked_issues?.map((i) => ({
+			status: i.status,
+			worker: i.worker,
+			worker_age: i.worker_age,
+		})) || [],
+	});
+
+	// Don't show if complete
+	if (eta.estimatedMinutes === 0) return null;
+
+	return (
+		<div
+			className={cn(
+				"rounded-lg p-4 border",
+				eta.isBlocked
+					? "bg-amber-900/20 border-amber-500/50"
+					: "bg-blue-900/20 border-blue-500/50",
+			)}
+		>
+			<div className="flex items-center justify-between mb-3">
+				<div className="flex items-center gap-2">
+					<Timer
+						size={18}
+						className={eta.isBlocked ? "text-amber-400" : "text-blue-400"}
+					/>
+					<h3
+						className={cn(
+							"font-medium",
+							eta.isBlocked ? "text-amber-300" : "text-blue-300",
+						)}
+					>
+						Estimated Completion
+					</h3>
+				</div>
+				<span
+					className={cn(
+						"text-lg font-semibold",
+						eta.isBlocked ? "text-amber-300" : "text-blue-300",
+					)}
+				>
+					{eta.display}
+				</span>
+			</div>
+
+			<div className="grid grid-cols-3 gap-4 text-sm">
+				<div>
+					<span className="text-gt-muted block text-xs">Active Workers</span>
+					<span
+						className={cn(
+							"font-medium",
+							eta.activeCount > 0 ? "text-green-400" : "text-gray-400",
+						)}
+					>
+						{eta.activeCount}
+					</span>
+				</div>
+				<div>
+					<span className="text-gt-muted block text-xs">In Progress</span>
+					<span
+						className={cn(
+							"font-medium",
+							eta.wipCount > 0 ? "text-amber-400" : "text-gray-400",
+						)}
+					>
+						{eta.wipCount}
+					</span>
+				</div>
+				<div>
+					<span className="text-gt-muted block text-xs">Waiting</span>
+					<span
+						className={cn(
+							"font-medium",
+							eta.blockedCount > 0 ? "text-red-400" : "text-gray-400",
+						)}
+					>
+						{eta.blockedCount}
+					</span>
+				</div>
+			</div>
+
+			{eta.isBlocked && (
+				<p className="mt-3 text-xs text-amber-200/70">
+					No active workers. Assign workers to waiting issues to continue
+					progress.
+				</p>
+			)}
+
+			{eta.confidence !== "none" && (
+				<p className="mt-3 text-xs text-gt-muted">
+					Estimate based on{" "}
+					{eta.confidence === "high"
+						? "historical completion rate"
+						: eta.confidence === "medium"
+							? "current work patterns"
+							: "default estimates"}
+					. Actual time may vary.
+				</p>
+			)}
+		</div>
+	);
+}
+
 // Issue status icon
 function IssueStatusIcon({ status }: { status: string }) {
 	switch (status) {
@@ -131,6 +272,19 @@ function ConvoyCard({
 	const workerCount = convoy.tracked_issues?.filter(
 		(i) => i.status === "in_progress" || i.status === "hooked",
 	).length;
+
+	// Calculate ETA from tracked issues
+	const eta = calculateConvoyETA({
+		total: convoy.total || 0,
+		completed: convoy.completed || 0,
+		issues: convoy.tracked_issues?.map((i) => ({
+			status: i.status,
+			worker: i.assignee, // Use assignee as proxy for worker in list view
+		})) || [],
+	});
+
+	// Don't show ETA for closed convoys
+	const showETA = convoy.status === "open" && (convoy.total || 0) > 0;
 
 	return (
 		<button
@@ -163,11 +317,10 @@ function ConvoyCard({
 			</div>
 
 			<div className="mt-2 flex items-center justify-between gap-2">
-				<ConvoyStatusBadge
-					status={convoy.status}
-					isStranded={convoy.is_stranded}
-					synthesisReady={convoy.synthesis_ready}
-				/>
+				<div className="flex items-center gap-2">
+					<ConvoyStatusBadge status={convoy.status} />
+					{showETA && <ETABadge eta={eta} />}
+				</div>
 				<MiniProgress
 					completed={convoy.completed || 0}
 					total={convoy.total || 0}
@@ -930,6 +1083,11 @@ function ConvoyDetailPanel({
 					</div>
 				</div>
 
+				{/* ETA Estimate */}
+				{detail.status === "open" && total > 0 && (
+					<ConvoyETAPanel detail={detail} />
+				)}
+
 				{/* Metadata */}
 				<div className="grid grid-cols-2 gap-4 text-sm">
 					<div>
@@ -989,175 +1147,6 @@ function EmptyDetailState() {
 		<div className="flex flex-col items-center justify-center h-full text-gt-muted">
 			<Truck size={48} className="mb-4 opacity-30" />
 			<p>Select a convoy to view details</p>
-		</div>
-	);
-}
-
-// Synthesis Gate Panel - shows all convoys ready for synthesis vs blocked
-function SynthesisGatePanel({
-	convoys,
-	onSelectConvoy,
-	onStartSynthesis,
-	isStarting,
-	startingConvoyId,
-}: {
-	convoys: Convoy[];
-	onSelectConvoy: (id: string) => void;
-	onStartSynthesis: (convoyId: string) => void;
-	isStarting: boolean;
-	startingConvoyId: string | null;
-}) {
-	const [isExpanded, setIsExpanded] = useState(true);
-
-	// Filter to only open convoys that need synthesis
-	const synthesisConvoys = convoys.filter(
-		(c) => c.status === "open" && (c.formula || c.molecule),
-	);
-
-	// Separate into ready and blocked
-	const readyConvoys = synthesisConvoys.filter((c) => c.synthesis_ready);
-	const blockedConvoys = synthesisConvoys.filter((c) => !c.synthesis_ready);
-
-	// Don't show if no convoys need synthesis
-	if (synthesisConvoys.length === 0) return null;
-
-	return (
-		<div className="mx-4 mt-4">
-			<div
-				className={cn(
-					"rounded-lg border transition-all",
-					readyConvoys.length > 0
-						? "bg-blue-900/10 border-blue-500/40"
-						: "bg-gt-surface border-gt-border",
-				)}
-			>
-				{/* Header */}
-				<button
-					onClick={() => setIsExpanded(!isExpanded)}
-					className="w-full flex items-center justify-between p-3 hover:bg-gt-bg/30 rounded-t-lg transition-colors"
-				>
-					<div className="flex items-center gap-3">
-						<Beaker
-							size={18}
-							className={readyConvoys.length > 0 ? "text-blue-400" : "text-gt-muted"}
-						/>
-						<div className="text-left">
-							<h3 className="font-medium text-sm">Synthesis Gate</h3>
-							<p className="text-xs text-gt-muted">
-								{readyConvoys.length} ready, {blockedConvoys.length} blocked
-							</p>
-						</div>
-					</div>
-					<div className="flex items-center gap-2">
-						{readyConvoys.length > 0 && (
-							<span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-900/30 text-blue-300">
-								{readyConvoys.length} Ready
-							</span>
-						)}
-						<ChevronRight
-							size={16}
-							className={cn(
-								"text-gt-muted transition-transform",
-								isExpanded && "rotate-90",
-							)}
-						/>
-					</div>
-				</button>
-
-				{/* Content */}
-				{isExpanded && (
-					<div className="px-3 pb-3 space-y-3">
-						{/* Ready for Synthesis */}
-						{readyConvoys.length > 0 && (
-							<div>
-								<h4 className="text-xs font-medium text-blue-300 mb-2 flex items-center gap-1.5">
-									<CheckCircle2 size={12} />
-									Ready for Synthesis
-								</h4>
-								<div className="space-y-1.5">
-									{readyConvoys.map((convoy) => (
-										<div
-											key={convoy.id}
-											className="flex items-center justify-between gap-2 p-2 rounded-lg bg-blue-900/20 border border-blue-500/30"
-										>
-											<button
-												onClick={() => onSelectConvoy(convoy.id)}
-												className="flex items-center gap-2 min-w-0 flex-1 text-left hover:opacity-80"
-											>
-												<Truck size={14} className="text-blue-400 flex-shrink-0" />
-												<div className="min-w-0">
-													<p className="text-sm font-medium truncate">{convoy.title}</p>
-													<p className="text-xs text-gt-muted truncate">
-														{convoy.completed}/{convoy.total} issues completed
-													</p>
-												</div>
-											</button>
-											<button
-												onClick={() => onStartSynthesis(convoy.id)}
-												disabled={isStarting && startingConvoyId === convoy.id}
-												className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors disabled:opacity-50 flex-shrink-0"
-											>
-												{isStarting && startingConvoyId === convoy.id ? (
-													<>
-														<Loader2 className="animate-spin" size={12} />
-														Starting...
-													</>
-												) : (
-													<>
-														<Play size={12} />
-														Start Synthesis
-													</>
-												)}
-											</button>
-										</div>
-									))}
-								</div>
-							</div>
-						)}
-
-						{/* Blocked */}
-						{blockedConvoys.length > 0 && (
-							<div>
-								<h4 className="text-xs font-medium text-amber-300 mb-2 flex items-center gap-1.5">
-									<AlertTriangle size={12} />
-									Blocked ({blockedConvoys.length})
-								</h4>
-								<div className="space-y-1.5">
-									{blockedConvoys.slice(0, 5).map((convoy) => {
-										const remaining = (convoy.total ?? 0) - (convoy.completed ?? 0);
-										return (
-											<button
-												key={convoy.id}
-												onClick={() => onSelectConvoy(convoy.id)}
-												className="w-full flex items-center justify-between gap-2 p-2 rounded-lg bg-gt-bg/50 border border-gt-border hover:border-gt-accent/50 transition-colors text-left"
-											>
-												<div className="flex items-center gap-2 min-w-0">
-													<Truck size={14} className="text-amber-400 flex-shrink-0" />
-													<div className="min-w-0">
-														<p className="text-sm truncate">{convoy.title}</p>
-														<p className="text-xs text-gt-muted">
-															{remaining} issue{remaining !== 1 ? "s" : ""} remaining
-														</p>
-													</div>
-												</div>
-												<MiniProgress
-													completed={convoy.completed ?? 0}
-													total={convoy.total ?? 0}
-												/>
-											</button>
-										);
-									})}
-									{blockedConvoys.length > 5 && (
-										<p className="text-xs text-gt-muted px-2">
-											+{blockedConvoys.length - 5} more blocked convoys
-										</p>
-									)}
-								</div>
-							</div>
-						)}
-					</div>
-				)}
-			</div>
 		</div>
 	);
 }
@@ -1422,40 +1411,11 @@ function CreateConvoyModal({
 
 // Main page component
 export default function Convoys() {
-	const [searchParams, setSearchParams] = useSearchParams();
-	const selectedId = searchParams.get("selected");
-	const setSelectedId = (id: string | null) => {
-		if (id) {
-			setSearchParams({ selected: id });
-		} else {
-			setSearchParams({});
-		}
-	};
+	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [showCreateModal, setShowCreateModal] = useState(false);
-	const [startingConvoyId, setStartingConvoyId] = useState<string | null>(null);
-
-	const queryClient = useQueryClient();
 
 	// SSE subscription for real-time updates
 	useConvoySubscription({ enabled: true });
-
-	// Synthesis mutation for gate panel
-	const synthesisMutation = useMutation({
-		mutationFn: (convoyId: string) => startSynthesis(convoyId),
-		onMutate: (convoyId) => {
-			setStartingConvoyId(convoyId);
-		},
-		onSuccess: (_data, convoyId) => {
-			queryClient.invalidateQueries({ queryKey: ["convoys"] });
-			queryClient.invalidateQueries({ queryKey: ["convoy-detail", convoyId] });
-			queryClient.invalidateQueries({
-				queryKey: ["synthesis-status", convoyId],
-			});
-		},
-		onSettled: () => {
-			setStartingConvoyId(null);
-		},
-	});
 
 	const {
 		data: convoys,
@@ -1523,17 +1483,6 @@ export default function Convoys() {
 					</button>
 				</div>
 			</div>
-
-			{/* Synthesis Gate Panel */}
-			{convoys && convoys.length > 0 && (
-				<SynthesisGatePanel
-					convoys={convoys}
-					onSelectConvoy={setSelectedId}
-					onStartSynthesis={(convoyId) => synthesisMutation.mutate(convoyId)}
-					isStarting={synthesisMutation.isPending}
-					startingConvoyId={startingConvoyId}
-				/>
-			)}
 
 			{/* Master-detail layout */}
 			<div className="flex-1 flex min-h-0">
