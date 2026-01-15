@@ -43,6 +43,8 @@ import {
 	disableRig,
 	enableAllRigs,
 	disableAllRigs,
+	getRigMergeQueue,
+	getAllRigMergeQueues,
 } from "../services/rigs.js";
 import { getTelemetrySnapshot } from "../services/telemetry.js";
 import type {
@@ -495,6 +497,26 @@ router.post(
 	asyncHandler(async (req, res) => {
 		const result = await disableAllRigs(getTownRoot(req));
 		res.json(result);
+	}),
+);
+
+// =====================
+// Merge Queue
+// =====================
+
+router.get(
+	"/mq",
+	asyncHandler(async (req, res) => {
+		const queues = await getAllRigMergeQueues(getTownRoot(req));
+		res.json(queues);
+	}),
+);
+
+router.get(
+	"/mq/:rig",
+	asyncHandler(async (req, res) => {
+		const queue = await getRigMergeQueue(req.params.rig, getTownRoot(req));
+		res.json(queue);
 	}),
 );
 

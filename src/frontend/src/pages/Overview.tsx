@@ -13,13 +13,11 @@ import {
 	Package,
 	Truck,
 	Radio,
-	RotateCcw,
-	Clock,
 } from "lucide-react";
-import { getStatus, getConvoys, getBeads, startTown, shutdownTown, getReworkLoops } from "@/lib/api";
+import { getStatus, getConvoys, getBeads, startTown, shutdownTown, getMergeQueues } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useMemo } from "react";
-import type { TownStatus, RigStatus, AgentRuntime, Convoy, Bead, ReworkLoopSummary } from "@/types/api";
+import type { TownStatus, RigStatus, AgentRuntime, Convoy, Bead, RigMergeQueue, MergeRequest } from "@/types/api";
 
 // Status indicator component
 function StatusIndicator({ status, size = "md", pulse = false }: {
@@ -65,14 +63,15 @@ function DigitalCounter({ value, label, color = "text-green-400", digits = 3 }: 
 	);
 }
 
-// Queue level indicator (industrial silo style) - Note: MQ data not available from gt status
-function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive = false }: {
+// Queue level indicator (industrial silo style)
+function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive = false, topMr }: {
 	pending: number;
 	inFlight: number;
 	blocked: number;
 	max?: number;
 	label: string;
 	isRigActive?: boolean;
+	topMr?: MergeRequest;
 }) {
 	const total = pending + inFlight + blocked;
 	const fillPercent = Math.min(100, (total / max) * 100);
@@ -192,10 +191,22 @@ function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive =
 			<div className="mt-2 text-center">
 				<div className="font-mono text-base sm:text-lg md:text-xl lg:text-xl font-bold text-slate-200">{total}</div>
 				<div className="flex gap-1.5 text-[8px] sm:text-[9px] md:text-[10px] lg:text-[10px] justify-center font-mono">
-					<span className="text-green-400">{pending}p</span>
+					<span className="text-green-400">{pending}r</span>
 					<span className="text-blue-400">{inFlight}f</span>
 					<span className="text-red-400">{blocked}b</span>
 				</div>
+				{/* Top MR display */}
+				{topMr && (
+					<div className="mt-1.5 px-1">
+						<div className="text-[7px] sm:text-[8px] text-slate-500 uppercase tracking-wide">Next</div>
+						<div
+							className="text-[8px] sm:text-[9px] text-cyan-400 font-mono truncate max-w-[60px] sm:max-w-[70px] md:max-w-[80px]"
+							title={topMr.bead_title || topMr.branch}
+						>
+							{topMr.bead_id || topMr.id.slice(0, 8)}
+						</div>
+					</div>
+				)}
 			</div>
 		</div>
 	);
@@ -548,90 +559,6 @@ function AlarmPanel({ agents, rigs }: { agents: AgentRuntime[]; rigs: RigStatus[
 	);
 }
 
-// Rework Loops Panel - shows issues stuck in merge failure cycles
-function ReworkLoopsPanel({ loops }: { loops: ReworkLoopSummary | undefined }) {
-	if (!loops || loops.total_loops === 0) {
-		return (
-			<div className="bg-slate-900/80 border border-slate-700 rounded-lg p-3">
-				<div className="flex items-center gap-2 mb-2">
-					<RotateCcw size={16} className="text-slate-400" />
-					<span className="text-sm font-semibold text-slate-200">Rework Loops</span>
-				</div>
-				<div className="text-xs text-slate-500 text-center py-2">
-					No rework loops detected
-				</div>
-			</div>
-		);
-	}
-
-	return (
-		<div className="bg-slate-900/80 border border-orange-700 rounded-lg p-3">
-			<div className="flex items-center justify-between mb-3">
-				<div className="flex items-center gap-2">
-					<RotateCcw size={16} className="text-orange-400 animate-spin-slow" />
-					<span className="text-sm font-semibold text-slate-200">Rework Loops</span>
-				</div>
-				<span className="text-xs px-2 py-0.5 bg-orange-900 text-orange-300 rounded-full font-mono">
-					{loops.total_loops} STUCK
-				</span>
-			</div>
-
-			<div className="max-h-40 overflow-y-auto space-y-2">
-				{loops.worst_offenders.map((loop) => (
-					<div
-						key={loop.issue_id}
-						className={cn(
-							"text-xs p-2 rounded border",
-							loop.cycle_count >= 3
-								? "bg-red-900/30 border-red-700 text-red-200"
-								: loop.cycle_count >= 2
-									? "bg-orange-900/30 border-orange-700 text-orange-200"
-									: "bg-yellow-900/30 border-yellow-700 text-yellow-200"
-						)}
-					>
-						<div className="flex items-center justify-between mb-1">
-							<span className="font-mono font-bold truncate max-w-[100px]" title={loop.issue_id}>
-								{loop.issue_id}
-							</span>
-							<div className="flex items-center gap-2">
-								<span className="flex items-center gap-1" title="Retry cycles">
-									<RotateCcw size={10} />
-									{loop.cycle_count}×
-								</span>
-								<span className="flex items-center gap-1" title="Time stuck">
-									<Clock size={10} />
-									{loop.time_stuck_display}
-								</span>
-							</div>
-						</div>
-						<div className="text-[10px] text-slate-400 truncate" title={loop.issue_title}>
-							{loop.issue_title}
-						</div>
-						<div className="flex items-center justify-between mt-1 text-[10px]">
-							<span className="text-slate-500">{loop.rig}</span>
-							<span className={cn(
-								"px-1 rounded uppercase",
-								loop.current_status === "failed" ? "bg-red-900 text-red-300" :
-								loop.current_status === "rejected" ? "bg-purple-900 text-purple-300" :
-								loop.current_status === "in_flight" ? "bg-blue-900 text-blue-300" :
-								"bg-slate-800 text-slate-400"
-							)}>
-								{loop.current_status}
-							</span>
-						</div>
-					</div>
-				))}
-			</div>
-
-			{loops.total_loops > 5 && (
-				<div className="text-[10px] text-slate-500 text-center mt-2">
-					+{loops.total_loops - 5} more issues in rework loops
-				</div>
-			)}
-		</div>
-	);
-}
-
 // Main control panel header
 function ControlHeader({ status, deaconRunning, onRefresh, onStart, onShutdown, isFetching }: {
 	status?: TownStatus;
@@ -921,12 +848,21 @@ export default function Overview() {
 		retry: 1,
 	});
 
-	const { data: reworkLoops } = useQuery({
-		queryKey: ["rework-loops"],
-		queryFn: getReworkLoops,
-		refetchInterval: 15_000,
+	const { data: mergeQueues = [] } = useQuery({
+		queryKey: ["mergeQueues"],
+		queryFn: getMergeQueues,
+		refetchInterval: 10_000,
 		retry: 1,
 	});
+
+	// Create a lookup map for merge queue data by rig name
+	const mqByRig = useMemo(() => {
+		const map = new Map<string, RigMergeQueue>();
+		for (const mq of mergeQueues) {
+			map.set(mq.rig, mq);
+		}
+		return map;
+	}, [mergeQueues]);
 
 	const handleStart = async () => {
 		await startTown();
@@ -1023,11 +959,9 @@ export default function Overview() {
 			{/* Main dashboard area */}
 			<div className="flex-1 p-4 overflow-hidden">
 				<div className="h-full grid grid-cols-12 gap-4">
-					{/* Left panel - Alarms, Rework Loops, and Convoys */}
+					{/* Left panel - Alarms and Convoys */}
 					<div className="col-span-3 flex flex-col gap-4">
 						<AlarmPanel agents={status.agents} rigs={status.rigs} />
-
-						<ReworkLoopsPanel loops={reworkLoops} />
 
 						{/* Convoy batch monitor */}
 						<div className="bg-slate-900/80 border border-slate-700 rounded-lg p-3 flex-1 overflow-hidden">
@@ -1064,7 +998,7 @@ export default function Overview() {
 						<div className="bg-slate-900/60 border border-slate-700 rounded-lg p-4 flex-1 overflow-hidden flex flex-col">
 							<div className="flex items-center gap-2 mb-4">
 								<Activity size={16} className="text-cyan-400" />
-								<span className="text-sm font-semibold text-slate-200">Message Queues</span>
+								<span className="text-sm font-semibold text-slate-200">Merge Queue</span>
 								<span className="text-xs text-slate-400">({status.rigs.length} rigs)</span>
 							</div>
 							<div className="overflow-y-auto flex-1 px-2">
@@ -1072,16 +1006,20 @@ export default function Overview() {
 									<div className="text-sm text-slate-500">No rigs configured</div>
 								) : (
 									<div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-6 gap-4 sm:gap-5 md:gap-6 lg:gap-8 justify-items-center py-2">
-										{sortedRigs.map((rig: RigStatus) => (
-											<QueueLevel
-												key={rig.name}
-												label={rig.name.slice(0, 12)}
-												pending={rig.mq?.pending || 0}
-												inFlight={rig.mq?.in_flight || 0}
-												blocked={rig.mq?.blocked || 0}
-												isRigActive={rig.polecat_count > 0 || rig.crew_count > 0}
-											/>
-										))}
+										{sortedRigs.map((rig: RigStatus) => {
+											const mqData = mqByRig.get(rig.name);
+											return (
+												<QueueLevel
+													key={rig.name}
+													label={rig.name.slice(0, 12)}
+													pending={mqData?.pending ?? rig.mq?.pending ?? 0}
+													inFlight={mqData?.in_flight ?? rig.mq?.in_flight ?? 0}
+													blocked={mqData?.blocked ?? rig.mq?.blocked ?? 0}
+													isRigActive={rig.polecat_count > 0 || rig.crew_count > 0}
+													topMr={mqData?.top_mr}
+												/>
+											);
+										})}
 									</div>
 								)}
 							</div>

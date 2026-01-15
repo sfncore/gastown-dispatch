@@ -2,6 +2,7 @@ import { execSync, exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
 import * as path from "path";
+import { runGt } from "../commands/runner.js";
 
 const execAsync = promisify(exec);
 
@@ -277,4 +278,87 @@ export async function disableAllRigs(
 	writeRigsJson(root, rigsJson);
 
 	return { success: true, message: `Disabled ${disabled} rigs`, disabled };
+}
+
+// Merge Queue types and functions
+export interface MergeRequest {
+	id: string;
+	branch: string;
+	bead_id?: string;
+	bead_title?: string;
+	convoy_id?: string;
+	priority: number;
+	status: string;
+	submitted_at: string;
+	agent?: string;
+}
+
+export interface RigMergeQueue {
+	rig: string;
+	pending: number;
+	in_flight: number;
+	blocked: number;
+	top_mr?: MergeRequest;
+}
+
+export async function getRigMergeQueue(
+	rigName: string,
+	townRoot?: string,
+): Promise<RigMergeQueue> {
+	const root = getTownRoot(townRoot);
+
+	// Get top MR for this rig
+	let topMr: MergeRequest | undefined;
+	try {
+		const result = await runGt(["mq", "next", rigName, "--json"], { cwd: root });
+		if (result.exitCode === 0 && result.stdout.trim()) {
+			topMr = JSON.parse(result.stdout);
+		}
+	} catch {
+		// No MR in queue or command failed
+	}
+
+	// Get queue counts from gt mq list
+	let pending = 0;
+	let inFlight = 0;
+	let blocked = 0;
+	try {
+		const result = await runGt(["mq", "list", rigName, "--json"], { cwd: root });
+		if (result.exitCode === 0 && result.stdout.trim()) {
+			const list = JSON.parse(result.stdout);
+			if (Array.isArray(list)) {
+				for (const mr of list) {
+					if (mr.status === "pending" || mr.status === "ready") pending++;
+					else if (mr.status === "in_flight" || mr.status === "merging") inFlight++;
+					else if (mr.status === "blocked" || mr.status === "failed") blocked++;
+				}
+			}
+		}
+	} catch {
+		// Empty queue or command failed
+	}
+
+	return {
+		rig: rigName,
+		pending,
+		in_flight: inFlight,
+		blocked,
+		top_mr: topMr,
+	};
+}
+
+export async function getAllRigMergeQueues(
+	townRoot?: string,
+): Promise<RigMergeQueue[]> {
+	const root = getTownRoot(townRoot);
+	const rigsJson = readRigsJson(root);
+	const rigNames = Object.keys(rigsJson.rigs);
+
+	const results: RigMergeQueue[] = [];
+	for (const name of rigNames) {
+		const mq = await getRigMergeQueue(name, root);
+		results.push(mq);
+	}
+
+	return results;
 }
