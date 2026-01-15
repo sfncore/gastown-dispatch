@@ -253,3 +253,47 @@ export interface DispatchSession {
 	created_at: string;
 	updated_at: string;
 }
+
+// Patrol (watchdog chain) types
+export interface DeaconHeartbeat {
+	timestamp: string;
+	cycle: number;
+	last_action: string;
+	healthy_agents: number;
+	unhealthy_agents: number;
+}
+
+export interface DeaconState {
+	patrol_count: number;
+	last_patrol: string;
+	extraordinary_action: boolean;
+}
+
+export interface BootStatus {
+	boot_dir: string;
+	degraded: boolean;
+	running: boolean;
+	session_alive: boolean;
+	last_status: {
+		running: boolean;
+		started_at: string;
+		completed_at: string;
+	};
+}
+
+export interface PatrolPausedState {
+	paused: boolean;
+	reason: string;
+	paused_at: string;
+	paused_by: string;
+}
+
+export interface PatrolStatus {
+	heartbeat: DeaconHeartbeat | null;
+	boot: BootStatus | null;
+	deacon_state: DeaconState | null;
+	patrol_muted: boolean;
+	patrol_paused: PatrolPausedState | null;
+	degraded_mode: boolean;
+	operational_mode: "normal" | "degraded" | "offline";
+}
