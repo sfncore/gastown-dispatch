@@ -44,6 +44,19 @@ import {
 	enableAllRigs,
 	disableAllRigs,
 } from "../services/rigs.js";
+import {
+	getMailInbox,
+	readMailMessage,
+	getMailThread,
+	markMailRead,
+	markMailUnread,
+	archiveMail,
+} from "../services/mail.js";
+import {
+	detectReworkLoops,
+	getFailedMergeRequests,
+	getAllMergeRequests,
+} from "../services/analytics.js";
 import type {
 	ConvoyCreateRequest,
 	ConvoyCloseRequest,
@@ -485,6 +498,93 @@ router.post(
 	asyncHandler(async (req, res) => {
 		const result = await disableAllRigs(getTownRoot(req));
 		res.json(result);
+	}),
+);
+
+// =====================
+// Mail
+// =====================
+
+router.get(
+	"/mail/inbox",
+	asyncHandler(async (req, res) => {
+		const filters = {
+			address: req.query.address as string | undefined,
+			unread: req.query.unread === "true",
+		};
+		const messages = await getMailInbox(filters, getTownRoot(req));
+		res.json(messages);
+	}),
+);
+
+router.get(
+	"/mail/messages/:id",
+	asyncHandler(async (req, res) => {
+		const message = await readMailMessage(req.params.id, getTownRoot(req));
+		res.json(message);
+	}),
+);
+
+router.get(
+	"/mail/threads/:threadId",
+	asyncHandler(async (req, res) => {
+		const messages = await getMailThread(
+			req.params.threadId,
+			getTownRoot(req),
+		);
+		res.json(messages);
+	}),
+);
+
+router.post(
+	"/mail/messages/:id/read",
+	asyncHandler(async (req, res) => {
+		const result = await markMailRead(req.params.id, getTownRoot(req));
+		res.json(result);
+	}),
+);
+
+router.post(
+	"/mail/messages/:id/unread",
+	asyncHandler(async (req, res) => {
+		const result = await markMailUnread(req.params.id, getTownRoot(req));
+		res.json(result);
+	}),
+);
+
+router.post(
+	"/mail/messages/:id/archive",
+	asyncHandler(async (req, res) => {
+		const result = await archiveMail(req.params.id, getTownRoot(req));
+		res.json(result);
+	}),
+);
+
+// =====================
+// Analytics
+// =====================
+
+router.get(
+	"/analytics/rework-loops",
+	asyncHandler(async (req, res) => {
+		const summary = await detectReworkLoops(getTownRoot(req));
+		res.json(summary);
+	}),
+);
+
+router.get(
+	"/analytics/merge-requests",
+	asyncHandler(async (req, res) => {
+		const mrs = await getAllMergeRequests(getTownRoot(req));
+		res.json(mrs);
+	}),
+);
+
+router.get(
+	"/analytics/merge-requests/failed",
+	asyncHandler(async (req, res) => {
+		const mrs = await getFailedMergeRequests(getTownRoot(req));
+		res.json(mrs);
 	}),
 );
 

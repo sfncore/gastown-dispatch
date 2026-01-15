@@ -221,6 +221,35 @@ export interface CrewAddRequest {
 	rig: string;
 }
 
+// Mail types
+export type MailPriority = "urgent" | "high" | "normal" | "low" | "backlog";
+export type MailType = "task" | "scavenge" | "notification" | "reply";
+
+export interface MailMessage {
+	id: string;
+	from: string;
+	to: string;
+	subject: string;
+	body: string;
+	timestamp: string;
+	read: boolean;
+	priority: MailPriority;
+	type: MailType;
+	thread_id: string;
+	cc?: string[];
+	reply_to?: string;
+}
+
+export interface MailInboxFilters {
+	address?: string;
+	unread?: boolean;
+}
+
+export interface MailThread {
+	thread_id: string;
+	messages: MailMessage[];
+}
+
 // Dispatch (Mayor chat) types
 export interface DispatchMessage {
 	id: string;
@@ -252,4 +281,41 @@ export interface DispatchSession {
 	context: DispatchContext;
 	created_at: string;
 	updated_at: string;
+}
+
+// Rework Loop Detection Types
+export type MRStatus = "pending" | "in_flight" | "merged" | "failed" | "rejected";
+
+export interface MergeRequest {
+	id: string;
+	rig: string;
+	branch: string;
+	issue_id: string;
+	issue_title?: string;
+	status: MRStatus;
+	created_at: string;
+	updated_at?: string;
+	error?: string;
+	retry_count: number;
+}
+
+export interface ReworkLoop {
+	issue_id: string;
+	issue_title: string;
+	rig: string;
+	cycle_count: number;           // Number of MERGE_FAILED → retry cycles
+	time_stuck_ms: number;         // Total time in rework loop
+	time_stuck_display: string;    // Human-readable "2h 15m"
+	first_failure_at: string;      // When the loop started
+	last_failure_at: string;       // Most recent failure
+	current_status: MRStatus;
+	assignee?: string;
+	mr_id?: string;
+}
+
+export interface ReworkLoopSummary {
+	total_loops: number;
+	total_time_stuck_ms: number;
+	loops: ReworkLoop[];
+	worst_offenders: ReworkLoop[]; // Top 5 by cycle count or time stuck
 }
