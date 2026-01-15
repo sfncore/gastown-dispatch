@@ -164,3 +164,35 @@ export interface BeadFilters {
 	parent?: string;
 	limit?: number;
 }
+
+// Merge Queue types
+export interface MergeRequest {
+	id: string;
+	status: "ready" | "in_progress" | "blocked" | "merged" | "rejected";
+	priority: string;
+	branch: string;
+	worker: string;
+	age: string;
+	blocked_by?: string;
+	convoy_id?: string;
+	bead_ids?: string[];
+	created_at?: string;
+	submitted_by?: string;
+}
+
+export interface MergeQueueListResponse {
+	rig: string;
+	requests: MergeRequest[];
+	summary: {
+		total: number;
+		ready: number;
+		in_progress: number;
+		blocked: number;
+	};
+}
+
+export interface NextMergeRequest {
+	rig: string;
+	request: MergeRequest | null;
+	strategy: "priority" | "fifo";
+}

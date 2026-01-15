@@ -7,6 +7,8 @@ import type {
 	Bead,
 	ActionResult,
 	BeadFilters,
+	MergeQueueListResponse,
+	NextMergeRequest,
 } from "@/types/api";
 
 const API_BASE = "/api";
@@ -259,4 +261,44 @@ export async function nudge(agent: string, message: string): Promise<ActionResul
 		method: "POST",
 		body: JSON.stringify({ agent, message }),
 	});
+}
+
+// Merge Queue
+export async function getMergeQueue(
+	rig: string,
+	options?: {
+		status?: "open" | "in_progress" | "closed";
+		ready?: boolean;
+		worker?: string;
+		epic?: string;
+	},
+): Promise<MergeQueueListResponse> {
+	const params = new URLSearchParams();
+	if (options?.status) params.set("status", options.status);
+	if (options?.ready) params.set("ready", "true");
+	if (options?.worker) params.set("worker", options.worker);
+	if (options?.epic) params.set("epic", options.epic);
+
+	const query = params.toString();
+	return fetchJson<MergeQueueListResponse>(
+		`/mq/${encodeURIComponent(rig)}${query ? `?${query}` : ""}`,
+	);
+}
+
+export async function getNextMergeRequest(
+	rig: string,
+	strategy?: "priority" | "fifo",
+): Promise<NextMergeRequest> {
+	const params = strategy ? `?strategy=${strategy}` : "";
+	return fetchJson<NextMergeRequest>(
+		`/mq/${encodeURIComponent(rig)}/next${params}`,
+	);
+}
+
+export async function getAllMergeQueues(
+	rigs: string[],
+): Promise<Record<string, MergeQueueListResponse>> {
+	return fetchJson<Record<string, MergeQueueListResponse>>(
+		`/mq?rigs=${rigs.map(encodeURIComponent).join(",")}`,
+	);
 }
