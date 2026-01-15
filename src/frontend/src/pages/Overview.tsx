@@ -16,8 +16,9 @@ import {
 } from "lucide-react";
 import { getStatus, getConvoys, getBeads, startTown, shutdownTown } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { TownStatus, RigStatus, AgentRuntime, Convoy, Bead } from "@/types/api";
+import { TrendsSparklines, type TrendData } from "@/components/dashboard/TrendsSparklines";
 
 // Status indicator component
 function StatusIndicator({ status, size = "md", pulse = false }: {
@@ -806,6 +807,9 @@ function AgentFlow({ agents, rigs }: { agents: AgentRuntime[]; rigs: RigStatus[]
 	);
 }
 
+// Ring buffer capacity - stores ~5 minutes of data at 5-second intervals
+const TREND_BUFFER_SIZE = 60;
+
 export default function Overview() {
 
 	const {
@@ -834,6 +838,68 @@ export default function Overview() {
 		refetchInterval: 10_000,
 		retry: 1,
 	});
+
+	// Trend tracking with ring buffer
+	const trendsRef = useRef<TrendData>({
+		convoysOpen: [],
+		blockedMRs: [],
+		mailBacklog: [],
+		throughput: [],
+	});
+	const lastClosedCountRef = useRef<number>(0);
+	const [trendData, setTrendData] = useState<TrendData>(trendsRef.current);
+
+	// Compute current metric values
+	const currentMetrics = useMemo(() => {
+		const blockedMRs = statusResponse?.status?.rigs?.reduce(
+			(sum, rig) => sum + (rig.mq?.blocked || 0),
+			0
+		) || 0;
+
+		const mailBacklog = statusResponse?.status?.agents?.reduce(
+			(sum, agent) => sum + (agent.unread_mail || 0),
+			0
+		) || 0;
+
+		const closedBeads = beads.filter(b => b.status === "closed").length;
+
+		return {
+			convoysOpen: convoys.length,
+			blockedMRs,
+			mailBacklog,
+			closedBeads,
+		};
+	}, [statusResponse?.status, convoys, beads]);
+
+	// Update trends when metrics change
+	useEffect(() => {
+		if (!statusResponse?.initialized) return;
+
+		const trends = trendsRef.current;
+
+		// Helper to push to ring buffer
+		const pushToBuffer = (arr: number[], value: number) => {
+			if (arr.length >= TREND_BUFFER_SIZE) {
+				arr.shift();
+			}
+			arr.push(value);
+		};
+
+		// Push current values
+		pushToBuffer(trends.convoysOpen, currentMetrics.convoysOpen);
+		pushToBuffer(trends.blockedMRs, currentMetrics.blockedMRs);
+		pushToBuffer(trends.mailBacklog, currentMetrics.mailBacklog);
+
+		// Calculate throughput (delta of closed beads)
+		const closedDelta = Math.max(0, currentMetrics.closedBeads - lastClosedCountRef.current);
+		if (lastClosedCountRef.current > 0 || trends.throughput.length > 0) {
+			pushToBuffer(trends.throughput, closedDelta);
+		}
+		lastClosedCountRef.current = currentMetrics.closedBeads;
+
+		// Trigger re-render with updated data
+		setTrendData({ ...trends });
+	}, [currentMetrics, statusResponse?.initialized]);
 
 	const handleStart = async () => {
 		await startTown();
@@ -1016,9 +1082,24 @@ export default function Overview() {
 				</div>
 			</div>
 
-			{/* Bottom status bar */}
-			<div className="bg-slate-900 border-t border-slate-700 px-4 py-2">
-				<div className="flex items-center justify-between text-xs">
+			{/* Bottom status bar with trends */}
+			<div className="bg-slate-900 border-t border-slate-700">
+				{/* Trends sparklines row */}
+				<div className="px-4 py-2 border-b border-slate-800">
+					<TrendsSparklines
+						trends={trendData}
+						currentValues={{
+							convoysOpen: currentMetrics.convoysOpen,
+							blockedMRs: currentMetrics.blockedMRs,
+							mailBacklog: currentMetrics.mailBacklog,
+							throughput: trendData.throughput.length > 0
+								? trendData.throughput[trendData.throughput.length - 1]
+								: 0,
+						}}
+					/>
+				</div>
+				{/* Status indicators row */}
+				<div className="px-4 py-1.5 flex items-center justify-between text-xs">
 					<div className="flex items-center gap-4">
 						<span className="text-slate-500">Location:</span>
 						<span className="text-slate-400 font-mono">{status.location}</span>
