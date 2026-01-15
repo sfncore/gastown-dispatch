@@ -14,10 +14,10 @@ import {
 	Truck,
 	Radio,
 } from "lucide-react";
-import { getStatus, getConvoys, getBeads, startTown, shutdownTown } from "@/lib/api";
+import { getStatus, getConvoys, getBeads, startTown, shutdownTown, getMergeQueues } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useMemo } from "react";
-import type { TownStatus, RigStatus, AgentRuntime, Convoy, Bead } from "@/types/api";
+import type { TownStatus, RigStatus, AgentRuntime, Convoy, Bead, RigMergeQueue, MergeRequest } from "@/types/api";
 
 // Status indicator component
 function StatusIndicator({ status, size = "md", pulse = false }: {
@@ -63,14 +63,15 @@ function DigitalCounter({ value, label, color = "text-green-400", digits = 3 }: 
 	);
 }
 
-// Queue level indicator (industrial silo style) - Note: MQ data not available from gt status
-function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive = false }: {
+// Queue level indicator (industrial silo style)
+function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive = false, topMr }: {
 	pending: number;
 	inFlight: number;
 	blocked: number;
 	max?: number;
 	label: string;
 	isRigActive?: boolean;
+	topMr?: MergeRequest;
 }) {
 	const total = pending + inFlight + blocked;
 	const fillPercent = Math.min(100, (total / max) * 100);
@@ -190,10 +191,22 @@ function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive =
 			<div className="mt-2 text-center">
 				<div className="font-mono text-base sm:text-lg md:text-xl lg:text-xl font-bold text-slate-200">{total}</div>
 				<div className="flex gap-1.5 text-[8px] sm:text-[9px] md:text-[10px] lg:text-[10px] justify-center font-mono">
-					<span className="text-green-400">{pending}p</span>
+					<span className="text-green-400">{pending}r</span>
 					<span className="text-blue-400">{inFlight}f</span>
 					<span className="text-red-400">{blocked}b</span>
 				</div>
+				{/* Top MR display */}
+				{topMr && (
+					<div className="mt-1.5 px-1">
+						<div className="text-[7px] sm:text-[8px] text-slate-500 uppercase tracking-wide">Next</div>
+						<div
+							className="text-[8px] sm:text-[9px] text-cyan-400 font-mono truncate max-w-[60px] sm:max-w-[70px] md:max-w-[80px]"
+							title={topMr.bead_title || topMr.branch}
+						>
+							{topMr.bead_id || topMr.id.slice(0, 8)}
+						</div>
+					</div>
+				)}
 			</div>
 		</div>
 	);
@@ -835,6 +848,22 @@ export default function Overview() {
 		retry: 1,
 	});
 
+	const { data: mergeQueues = [] } = useQuery({
+		queryKey: ["mergeQueues"],
+		queryFn: getMergeQueues,
+		refetchInterval: 10_000,
+		retry: 1,
+	});
+
+	// Create a lookup map for merge queue data by rig name
+	const mqByRig = useMemo(() => {
+		const map = new Map<string, RigMergeQueue>();
+		for (const mq of mergeQueues) {
+			map.set(mq.rig, mq);
+		}
+		return map;
+	}, [mergeQueues]);
+
 	const handleStart = async () => {
 		await startTown();
 		refetchStatus();
@@ -969,7 +998,7 @@ export default function Overview() {
 						<div className="bg-slate-900/60 border border-slate-700 rounded-lg p-4 flex-1 overflow-hidden flex flex-col">
 							<div className="flex items-center gap-2 mb-4">
 								<Activity size={16} className="text-cyan-400" />
-								<span className="text-sm font-semibold text-slate-200">Message Queues</span>
+								<span className="text-sm font-semibold text-slate-200">Merge Queue</span>
 								<span className="text-xs text-slate-400">({status.rigs.length} rigs)</span>
 							</div>
 							<div className="overflow-y-auto flex-1 px-2">
@@ -977,16 +1006,20 @@ export default function Overview() {
 									<div className="text-sm text-slate-500">No rigs configured</div>
 								) : (
 									<div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-6 gap-4 sm:gap-5 md:gap-6 lg:gap-8 justify-items-center py-2">
-										{sortedRigs.map((rig: RigStatus) => (
-											<QueueLevel
-												key={rig.name}
-												label={rig.name.slice(0, 12)}
-												pending={rig.mq?.pending || 0}
-												inFlight={rig.mq?.in_flight || 0}
-												blocked={rig.mq?.blocked || 0}
-												isRigActive={rig.polecat_count > 0 || rig.crew_count > 0}
-											/>
-										))}
+										{sortedRigs.map((rig: RigStatus) => {
+											const mqData = mqByRig.get(rig.name);
+											return (
+												<QueueLevel
+													key={rig.name}
+													label={rig.name.slice(0, 12)}
+													pending={mqData?.pending ?? rig.mq?.pending ?? 0}
+													inFlight={mqData?.in_flight ?? rig.mq?.in_flight ?? 0}
+													blocked={mqData?.blocked ?? rig.mq?.blocked ?? 0}
+													isRigActive={rig.polecat_count > 0 || rig.crew_count > 0}
+													topMr={mqData?.top_mr}
+												/>
+											);
+										})}
 									</div>
 								)}
 							</div>

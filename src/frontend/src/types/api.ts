@@ -60,6 +60,26 @@ export interface MQSummary {
 	health: "healthy" | "stale" | "empty";
 }
 
+export interface MergeRequest {
+	id: string;
+	branch: string;
+	bead_id?: string;
+	bead_title?: string;
+	convoy_id?: string;
+	priority: number;
+	status: string;
+	submitted_at: string;
+	agent?: string;
+}
+
+export interface RigMergeQueue {
+	rig: string;
+	pending: number;
+	in_flight: number;
+	blocked: number;
+	top_mr?: MergeRequest;
+}
+
 export interface StatusSummary {
 	rig_count: number;
 	polecat_count: number;

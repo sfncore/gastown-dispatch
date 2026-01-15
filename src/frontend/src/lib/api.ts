@@ -7,6 +7,7 @@ import type {
 	Bead,
 	ActionResult,
 	BeadFilters,
+	RigMergeQueue,
 } from "@/types/api";
 
 const API_BASE = "/api";
@@ -259,4 +260,13 @@ export async function nudge(agent: string, message: string): Promise<ActionResul
 		method: "POST",
 		body: JSON.stringify({ agent, message }),
 	});
+}
+
+// Merge Queue
+export async function getMergeQueues(): Promise<RigMergeQueue[]> {
+	return fetchJson<RigMergeQueue[]>("/mq");
+}
+
+export async function getRigMergeQueue(rig: string): Promise<RigMergeQueue> {
+	return fetchJson<RigMergeQueue>(`/mq/${encodeURIComponent(rig)}`);
 }
