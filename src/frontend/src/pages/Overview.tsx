@@ -63,7 +63,7 @@ function DigitalCounter({ value, label, color = "text-green-400", digits = 3 }: 
 	);
 }
 
-// Queue level indicator (industrial silo style)
+// Queue level indicator (industrial silo style) - Note: MQ data not available from gt status
 function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive = false }: {
 	pending: number;
 	inFlight: number;
@@ -204,17 +204,14 @@ function RigStation({ rig, isActive }: {
 	rig: RigStatus;
 	isActive: boolean;
 }) {
-	// Count active hooks as proxy for active work on this rig
-	const activeHooks = rig.hooks?.filter((h) => h.has_work).length || 0;
-	const mq = rig.mq || { pending: 0, in_flight: 0, blocked: 0, state: "idle", health: "empty" };
+	// Calculate real metrics from rig agents
+	const rigAgents = rig.agents || [];
+	const runningAgents = rigAgents.filter(a => a.running).length;
+	const workingAgents = rigAgents.filter(a => a.has_work).length;
+	const agentsWithMail = rigAgents.filter(a => a.unread_mail > 0).length;
+	const spawningAgents = rigAgents.filter(a => a.state === "spawning").length;
 
-	const getHealthColor = (health: string) => {
-		switch (health) {
-			case "healthy": return "text-green-400";
-			case "stale": return "text-yellow-400";
-			default: return "text-slate-400";
-		}
-	};
+	// Note: MQ (merge queue) data not available in gt status output
 
 	return (
 		<div className={cn(
@@ -233,48 +230,61 @@ function RigStation({ rig, isActive }: {
 					</span>
 				</div>
 				{isActive && (
-					<StatusIndicator
-						status={mq.state === "blocked" ? "error" : mq.state === "processing" ? "processing" : "active"}
-						pulse={mq.state === "processing"}
-					/>
+					<div className="flex items-center gap-1">
+						{workingAgents > 0 && (
+							<span className="text-[9px] px-1.5 py-0.5 bg-green-900/50 text-green-400 rounded-full animate-pulse">
+								WORK
+							</span>
+						)}
+						{spawningAgents > 0 && (
+							<span className="text-[9px] px-1.5 py-0.5 bg-yellow-900/50 text-yellow-400 rounded-full">
+								SPAWN
+							</span>
+						)}
+						{agentsWithMail > 0 && (
+							<span className="text-[9px] px-1.5 py-0.5 bg-purple-900/50 text-purple-400 rounded-full">
+								{agentsWithMail}✉
+							</span>
+						)}
+					</div>
 				)}
 			</div>
 
-			{/* Worker counts */}
+			{/* Agent metrics */}
 			<div className="grid grid-cols-3 gap-2 mb-3">
 				<DigitalCounter
-					value={rig.polecat_count}
-					label="Polecats"
-					color={isActive && rig.polecat_count > 0 ? "text-blue-400" : "text-slate-600"}
+					value={runningAgents}
+					label="Running"
+					color={isActive && runningAgents > 0 ? "text-green-400" : "text-slate-600"}
 					digits={2}
 				/>
 				<DigitalCounter
-					value={rig.crew_count}
-					label="Crew"
-					color={isActive && rig.crew_count > 0 ? "text-green-400" : "text-slate-600"}
+					value={workingAgents}
+					label="Working"
+					color={isActive && workingAgents > 0 ? "text-blue-400" : "text-slate-600"}
 					digits={2}
 				/>
 				<DigitalCounter
-					value={activeHooks}
-					label="Hooks"
-					color={isActive && activeHooks > 0 ? "text-yellow-400" : "text-slate-600"}
+					value={spawningAgents}
+					label="Spawn"
+					color={isActive && spawningAgents > 0 ? "text-yellow-400" : "text-slate-600"}
 					digits={2}
 				/>
 			</div>
 
-			{/* MQ Status */}
+			{/* Capacity allocation */}
 			<div className="flex items-center justify-between text-xs">
 				<div className="flex items-center gap-1">
-					<span className="text-slate-500">MQ:</span>
-					<span className={cn("font-mono uppercase", getHealthColor(mq.health))}>
-						{mq.health}
+					<span className="text-slate-500">Capacity:</span>
+					<span className="text-slate-400 font-mono">
+						{rig.polecat_count}P {rig.crew_count}C
 					</span>
 				</div>
-				<div className="flex items-center gap-2 text-slate-400 font-mono">
-					<span title="Pending" className="text-green-400">{mq.pending}p</span>
-					<span title="In-flight" className="text-blue-400">{mq.in_flight}f</span>
-					<span title="Blocked" className="text-red-400">{mq.blocked}b</span>
-				</div>
+				{agentsWithMail > 0 && (
+					<div className="flex items-center gap-1">
+						<span className="text-purple-400 font-mono text-xs">{agentsWithMail}✉</span>
+					</div>
+				)}
 			</div>
 
 			{/* Feature indicators */}
@@ -487,13 +497,15 @@ function AlarmPanel({ agents, rigs }: { agents: AgentRuntime[]; rigs: RigStatus[
 		}
 	});
 
-	// Check for MQ issues
+	// Check for rig-level issues
 	rigs.forEach(r => {
-		if (r.mq?.state === "blocked") {
-			alerts.push({ level: "error", message: `${r.name}: Message queue blocked (${r.mq.blocked} items)` });
-		}
-		if (r.mq?.health === "stale") {
-			alerts.push({ level: "warning", message: `${r.name}: Message queue stale` });
+		const rigAgents = r.agents || [];
+		const runningAgents = rigAgents.filter(a => a.running).length;
+		const totalAgents = rigAgents.length;
+
+		// Alert if rig has allocated workers but none are running
+		if ((r.polecat_count > 0 || r.crew_count > 0) && runningAgents === 0 && totalAgents > 0) {
+			alerts.push({ level: "warning", message: `${r.name}: Workers allocated but none running` });
 		}
 	});
 
@@ -665,13 +677,18 @@ function ControlHeader({ status, deaconRunning, onRefresh, onStart, onShutdown, 
 }
 
 // Industrial control room visualization
-function AgentFlow({ agents, rigs, status }: { agents: AgentRuntime[]; rigs: RigStatus[]; status: TownStatus }) {
+function AgentFlow({ agents, rigs }: { agents: AgentRuntime[]; rigs: RigStatus[] }) {
 	const mayor = agents.find(a => a.name === "mayor");
 	const deacon = agents.find(a => a.name === "deacon");
-	// Use summary counts instead of filtering agents (which only has mayor/deacon)
-	const totalWorkers = (status.summary.polecat_count || 0) + (status.summary.crew_count || 0);
-	// Count active rigs (those with workers allocated) as proxy for active workers
-	const activeRigs = rigs.filter(r => (r.polecat_count > 0 || r.crew_count > 0)).length;
+
+	// Aggregate all agents from all rigs for accurate metrics
+	const allRigAgents = rigs.flatMap(r => r.agents || []);
+	const totalAgents = allRigAgents.length;
+	const runningAgents = allRigAgents.filter(a => a.running).length;
+	const workingAgents = allRigAgents.filter(a => a.has_work).length;
+	const spawningAgents = allRigAgents.filter(a => a.state === "spawning").length;
+	const agentsWithMail = allRigAgents.filter(a => a.unread_mail > 0).length;
+	const totalUnreadMail = allRigAgents.reduce((sum, a) => sum + (a.unread_mail || 0), 0);
 
 	const getMayorStatus = () => {
 		if (!mayor) return "offline";
@@ -788,20 +805,24 @@ function AgentFlow({ agents, rigs, status }: { agents: AgentRuntime[]; rigs: Rig
 
 				{/* Worker Pool Stats */}
 				<div className="flex flex-col items-center flex-shrink-0">
-					<div className="w-20 h-14 rounded border-2 border-slate-600 bg-slate-800 flex flex-col items-center justify-center p-1">
-						<div className="flex items-center gap-1">
-							<Users size={12} className="text-blue-400" />
-							<span className="text-sm font-bold font-mono text-blue-400">{totalWorkers}</span>
-							<span className="text-[8px] text-slate-500">WORK</span>
+					<div className="w-24 h-14 rounded border-2 border-slate-600 bg-slate-800 flex flex-col items-center justify-center p-1">
+						<div className="flex items-center gap-1 mb-0.5">
+							<Users size={10} className="text-blue-400" />
+							<span className="text-xs font-bold font-mono text-blue-400">{runningAgents}/{totalAgents}</span>
+							<span className="text-[7px] text-slate-500">RUN</span>
 						</div>
-						<div className="w-full flex justify-between text-[8px] mt-1">
-							<div className="text-center">
-								<div className="font-mono text-green-400 text-sm">{activeRigs}</div>
-								<div className="text-slate-500">ACT</div>
+						<div className="w-full grid grid-cols-3 gap-0.5 text-[7px]">
+							<div className="text-center" title={`${workingAgents} agents with active work`}>
+								<div className="font-mono text-green-400 text-[10px]">{workingAgents}</div>
+								<div className="text-slate-500">WRK</div>
 							</div>
-							<div className="text-center">
-								<div className="font-mono text-slate-400 text-sm">{rigs.length - activeRigs}</div>
-								<div className="text-slate-500">IDLE</div>
+							<div className="text-center" title={`${spawningAgents} agents starting up`}>
+								<div className="font-mono text-yellow-400 text-[10px]">{spawningAgents}</div>
+								<div className="text-slate-500">SPN</div>
+							</div>
+							<div className="text-center" title={`${agentsWithMail} agents with ${totalUnreadMail} unread messages`}>
+								<div className="font-mono text-purple-400 text-[10px]">{agentsWithMail}</div>
+								<div className="text-slate-500">MAL</div>
 							</div>
 						</div>
 					</div>
@@ -974,7 +995,7 @@ export default function Overview() {
 					{/* Center panel - Main schematic */}
 					<div className="col-span-6 flex flex-col gap-4">
 						{/* Agent hierarchy */}
-						<AgentFlow agents={status.agents} rigs={status.rigs} status={status} />
+						<AgentFlow agents={status.agents} rigs={status.rigs} />
 
 						{/* Work pipeline */}
 						<WorkPipeline beads={beads} />
