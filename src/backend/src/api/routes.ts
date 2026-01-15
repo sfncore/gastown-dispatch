@@ -1,5 +1,9 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { getTownStatus } from "../services/status.js";
+import {
+	getTownStatus,
+	isStatusDegraded,
+	getStatusCacheStats,
+} from "../services/status.js";
 import {
 	listConvoys,
 	getConvoyStatus,
@@ -43,10 +47,18 @@ import {
 	disableRig,
 	enableAllRigs,
 	disableAllRigs,
-	getRigMergeQueue,
-	getAllRigMergeQueues,
 } from "../services/rigs.js";
-import { getTelemetrySnapshot } from "../services/telemetry.js";
+import {
+	getUnreadCount,
+	getMailInbox,
+	invalidateMailCache,
+	getMailCacheStats,
+} from "../services/mail.js";
+import {
+	getAllMQStatus,
+	getRigMQStatus,
+	getAggregateMQSummary,
+} from "../services/mergeQueue.js";
 import type {
 	ConvoyCreateRequest,
 	ConvoyCloseRequest,
@@ -84,12 +96,27 @@ router.get(
 	}),
 );
 
-// GET /api/telemetry/snapshot - Coherent snapshot of all lanes for Overview
+// Health check with degradation info
 router.get(
-	"/telemetry/snapshot",
+	"/health",
 	asyncHandler(async (req, res) => {
-		const snapshot = await getTelemetrySnapshot(getTownRoot(req));
-		res.json(snapshot);
+		const statusStats = getStatusCacheStats();
+		const mailStats = getMailCacheStats();
+
+		const mailStatsObj: Record<string, unknown> = {};
+		for (const [key, value] of mailStats) {
+			mailStatsObj[key] = value;
+		}
+
+		const degraded = isStatusDegraded();
+
+		res.json({
+			status: degraded ? "degraded" : "healthy",
+			caches: {
+				status: statusStats,
+				mail: mailStatsObj,
+			},
+		});
 	}),
 );
 
@@ -501,22 +528,89 @@ router.post(
 );
 
 // =====================
-// Merge Queue
+// Mail Inbox (cached)
 // =====================
 
+// Get unread mail count (3s cache)
 router.get(
-	"/mq",
+	"/mail/unread",
 	asyncHandler(async (req, res) => {
-		const queues = await getAllRigMergeQueues(getTownRoot(req));
-		res.json(queues);
+		const agent = req.query.agent as string | undefined;
+		const result = await getUnreadCount(agent, getTownRoot(req));
+		res.json(result);
 	}),
 );
 
+// Get full mail inbox (10-15s cache)
+router.get(
+	"/mail/inbox",
+	asyncHandler(async (req, res) => {
+		const agent = req.query.agent as string | undefined;
+		const result = await getMailInbox(agent, getTownRoot(req));
+		res.json(result);
+	}),
+);
+
+// Invalidate mail cache (after sending/reading)
+router.post(
+	"/mail/invalidate",
+	asyncHandler(async (req, res) => {
+		const { agent } = req.body as { agent?: string };
+		invalidateMailCache(agent);
+		res.json({ success: true, message: "Mail cache invalidated" });
+	}),
+);
+
+// Get mail cache stats (monitoring)
+router.get(
+	"/mail/stats",
+	asyncHandler(async (_req, res) => {
+		const stats = getMailCacheStats();
+		const result: Record<string, unknown> = {};
+		for (const [key, value] of stats) {
+			result[key] = value;
+		}
+		res.json(result);
+	}),
+);
+
+// =====================
+// Merge Queue (cached)
+// =====================
+
+// Get aggregate MQ summary across all rigs (5-10s staggered)
+router.get(
+	"/mq/summary",
+	asyncHandler(async (req, res) => {
+		const summary = await getAggregateMQSummary(getTownRoot(req));
+		res.json(summary);
+	}),
+);
+
+// Get MQ status for all rigs
+router.get(
+	"/mq/all",
+	asyncHandler(async (req, res) => {
+		const response = await getAllMQStatus(getTownRoot(req));
+		// Convert Map to object for JSON serialization
+		const data: Record<string, unknown> = {};
+		for (const [key, value] of response.data) {
+			data[key] = value;
+		}
+		res.json({
+			data,
+			degraded: response.degraded,
+			error: response.error,
+		});
+	}),
+);
+
+// Get MQ status for a specific rig
 router.get(
 	"/mq/:rig",
 	asyncHandler(async (req, res) => {
-		const queue = await getRigMergeQueue(req.params.rig, getTownRoot(req));
-		res.json(queue);
+		const mq = await getRigMQStatus(req.params.rig, getTownRoot(req));
+		res.json(mq);
 	}),
 );
 
