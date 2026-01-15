@@ -208,8 +208,7 @@ function RigStation({ rig, isActive }: {
 	const rigAgents = rig.agents || [];
 	const runningAgents = rigAgents.filter(a => a.running).length;
 	const workingAgents = rigAgents.filter(a => a.has_work).length;
-	const agentsWithMail = rigAgents.filter(a => a.unread_mail > 0).length;
-	const spawningAgents = rigAgents.filter(a => a.state === "spawning").length;
+	const unreadMail = rigAgents.reduce((sum, a) => sum + (a.unread_mail || 0), 0);
 
 	// Note: MQ (merge queue) data not available in gt status output
 
@@ -236,14 +235,9 @@ function RigStation({ rig, isActive }: {
 								WORK
 							</span>
 						)}
-						{spawningAgents > 0 && (
-							<span className="text-[9px] px-1.5 py-0.5 bg-yellow-900/50 text-yellow-400 rounded-full">
-								SPAWN
-							</span>
-						)}
-						{agentsWithMail > 0 && (
+						{unreadMail > 0 && (
 							<span className="text-[9px] px-1.5 py-0.5 bg-purple-900/50 text-purple-400 rounded-full">
-								{agentsWithMail}✉
+								{unreadMail}✉
 							</span>
 						)}
 					</div>
@@ -265,9 +259,9 @@ function RigStation({ rig, isActive }: {
 					digits={2}
 				/>
 				<DigitalCounter
-					value={spawningAgents}
-					label="Spawn"
-					color={isActive && spawningAgents > 0 ? "text-yellow-400" : "text-slate-600"}
+					value={unreadMail}
+					label="Mail"
+					color={isActive && unreadMail > 0 ? "text-purple-400" : "text-slate-600"}
 					digits={2}
 				/>
 			</div>
@@ -280,9 +274,9 @@ function RigStation({ rig, isActive }: {
 						{rig.polecat_count}P {rig.crew_count}C
 					</span>
 				</div>
-				{agentsWithMail > 0 && (
+				{unreadMail > 0 && (
 					<div className="flex items-center gap-1">
-						<span className="text-purple-400 font-mono text-xs">{agentsWithMail}✉</span>
+						<span className="text-purple-400 font-mono text-xs">{unreadMail}✉</span>
 					</div>
 				)}
 			</div>
@@ -686,8 +680,6 @@ function AgentFlow({ agents, rigs }: { agents: AgentRuntime[]; rigs: RigStatus[]
 	const totalAgents = allRigAgents.length;
 	const runningAgents = allRigAgents.filter(a => a.running).length;
 	const workingAgents = allRigAgents.filter(a => a.has_work).length;
-	const spawningAgents = allRigAgents.filter(a => a.state === "spawning").length;
-	const agentsWithMail = allRigAgents.filter(a => a.unread_mail > 0).length;
 	const totalUnreadMail = allRigAgents.reduce((sum, a) => sum + (a.unread_mail || 0), 0);
 
 	const getMayorStatus = () => {
@@ -811,18 +803,14 @@ function AgentFlow({ agents, rigs }: { agents: AgentRuntime[]; rigs: RigStatus[]
 							<span className="text-xs font-bold font-mono text-blue-400">{runningAgents}/{totalAgents}</span>
 							<span className="text-[7px] text-slate-500">RUN</span>
 						</div>
-						<div className="w-full grid grid-cols-3 gap-0.5 text-[7px]">
+						<div className="w-full flex justify-between text-[7px] px-1">
 							<div className="text-center" title={`${workingAgents} agents with active work`}>
-								<div className="font-mono text-green-400 text-[10px]">{workingAgents}</div>
-								<div className="text-slate-500">WRK</div>
+								<div className="font-mono text-green-400 text-sm">{workingAgents}</div>
+								<div className="text-slate-500 text-[7px]">WORK</div>
 							</div>
-							<div className="text-center" title={`${spawningAgents} agents starting up`}>
-								<div className="font-mono text-yellow-400 text-[10px]">{spawningAgents}</div>
-								<div className="text-slate-500">SPN</div>
-							</div>
-							<div className="text-center" title={`${agentsWithMail} agents with ${totalUnreadMail} unread messages`}>
-								<div className="font-mono text-purple-400 text-[10px]">{agentsWithMail}</div>
-								<div className="text-slate-500">MAL</div>
+							<div className="text-center" title={`${totalUnreadMail} total unread messages`}>
+								<div className="font-mono text-purple-400 text-sm">{totalUnreadMail}</div>
+								<div className="text-slate-500 text-[7px]">MAIL</div>
 							</div>
 						</div>
 					</div>
