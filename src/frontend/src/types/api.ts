@@ -60,26 +60,6 @@ export interface MQSummary {
 	health: "healthy" | "stale" | "empty";
 }
 
-export interface MergeRequest {
-	id: string;
-	branch: string;
-	bead_id?: string;
-	bead_title?: string;
-	convoy_id?: string;
-	priority: number;
-	status: string;
-	submitted_at: string;
-	agent?: string;
-}
-
-export interface RigMergeQueue {
-	rig: string;
-	pending: number;
-	in_flight: number;
-	blocked: number;
-	top_mr?: MergeRequest;
-}
-
 export interface StatusSummary {
 	rig_count: number;
 	polecat_count: number;
@@ -185,67 +165,26 @@ export interface BeadFilters {
 	limit?: number;
 }
 
-// Merge Queue types
-export interface MergeRequest {
+// Mail types
+export type MailPriority = "urgent" | "high" | "normal" | "low" | "backlog";
+export type MailType = "task" | "scavenge" | "notification" | "reply";
+
+export interface MailMessage {
 	id: string;
-	title: string;
-	description?: string;
-	status: string;
-	priority: number;
-	issue_type: string;
-	created_at: string;
-	updated_at: string;
-	closed_at?: string;
-	assignee?: string;
-	blocked_by?: string[];
-	blocked_by_count?: number;
-	labels?: string[];
+	from: string;
+	to: string;
+	subject: string;
+	body: string;
+	timestamp: string;
+	read: boolean;
+	priority: MailPriority;
+	type: MailType;
+	thread_id: string;
+	cc?: string[];
+	reply_to?: string;
 }
 
-export interface MRStatusOutput {
-	id: string;
-	title: string;
-	status: string;
-	priority: number;
-	type: string;
-	assignee?: string;
-	created_at: string;
-	updated_at: string;
-	closed_at?: string;
-	branch?: string;
-	target?: string;
-	source_issue?: string;
-	worker?: string;
-	rig?: string;
-	merge_commit?: string;
-	close_reason?: string;
-	depends_on?: MRDependencyInfo[];
-	blocks?: MRDependencyInfo[];
-}
-
-export interface MRDependencyInfo {
-	id: string;
-	title: string;
-	status: string;
-	priority: number;
-	type: string;
-}
-
-export interface MQListFilters {
-	status?: string;
-	worker?: string;
-	epic?: string;
-	ready?: boolean;
-}
-
-export interface MQNextOptions {
-	strategy?: "priority" | "fifo";
-}
-
-export interface MQSummaryResponse {
-	total: number;
-	ready: number;
-	blocked: number;
-	in_progress: number;
-	items: MergeRequest[];
+export interface MailInboxFilters {
+	address?: string;
+	unread?: boolean;
 }

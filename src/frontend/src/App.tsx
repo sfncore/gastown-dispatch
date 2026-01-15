@@ -10,6 +10,7 @@ import {
 	Rocket,
 	HardDrive,
 	GitBranch,
+	Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Overview from "@/pages/Overview";
@@ -27,10 +28,12 @@ import PipelineMergeQueue from "@/pages/pipeline/MergeQueue";
 import PipelineTests from "@/pages/pipeline/Tests";
 import PipelineDeployments from "@/pages/pipeline/Deployments";
 import PipelineMonitoring from "@/pages/pipeline/Monitoring";
+import ActionInbox from "@/pages/ActionInbox";
 
 const navItems = [
 	{ to: "/overview", icon: LayoutDashboard, label: "Overview" },
 	{ to: "/dispatch", icon: MessageSquare, label: "Mayor" },
+	{ to: "/inbox", icon: Inbox, label: "Inbox" },
 	{ to: "/convoys", icon: Truck, label: "Convoys" },
 	{ to: "/beads", icon: CircleDot, label: "Beads" },
 	{ to: "/pipeline", icon: GitBranch, label: "Pipeline" },
@@ -110,6 +113,7 @@ export default function App() {
 					<Route path="/" element={<Navigate to="/overview" replace />} />
 					<Route path="/overview" element={<Overview />} />
 					<Route path="/dispatch" element={<DispatchTerminal />} />
+					<Route path="/inbox" element={<ActionInbox />} />
 					<Route path="/convoys" element={<Convoys />} />
 					<Route path="/beads" element={<Beads />} />
 					<Route path="/pipeline" element={<Pipeline />}>
