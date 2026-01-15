@@ -18,6 +18,7 @@ import { getStatus, getConvoys, getBeads, startTown, shutdownTown } from "@/lib/
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useMemo } from "react";
 import type { TownStatus, RigStatus, AgentRuntime, Convoy, Bead } from "@/types/api";
+import { FlowSchematic } from "@/components/dashboard/FlowSchematic";
 
 // Status indicator component
 function StatusIndicator({ status, size = "md", pulse = false }: {
@@ -959,6 +960,9 @@ export default function Overview() {
 
 					{/* Center panel - Main schematic */}
 					<div className="col-span-6 flex flex-col gap-4">
+						{/* Pipeline Flow Schematic */}
+						<FlowSchematic />
+
 						{/* Agent hierarchy */}
 						<AgentFlow agents={status.agents} rigs={status.rigs} />
 
