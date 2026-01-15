@@ -44,6 +44,7 @@ import {
 	enableAllRigs,
 	disableAllRigs,
 } from "../services/rigs.js";
+import { getTelemetrySnapshot } from "../services/telemetry.js";
 import type {
 	ConvoyCreateRequest,
 	ConvoyCloseRequest,
@@ -78,6 +79,15 @@ router.get(
 	asyncHandler(async (req, res) => {
 		const status = await getTownStatus(getTownRoot(req));
 		res.json(status);
+	}),
+);
+
+// GET /api/telemetry/snapshot - Coherent snapshot of all lanes for Overview
+router.get(
+	"/telemetry/snapshot",
+	asyncHandler(async (req, res) => {
+		const snapshot = await getTelemetrySnapshot(getTownRoot(req));
+		res.json(snapshot);
 	}),
 );
 

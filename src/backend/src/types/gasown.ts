@@ -253,3 +253,106 @@ export interface DispatchSession {
 	created_at: string;
 	updated_at: string;
 }
+
+// Telemetry Snapshot types - single source of truth for Overview
+export interface TownTelemetrySnapshot {
+	timestamp: string;
+	town_name: string;
+	lanes: {
+		agents: AgentsLane;
+		work: WorkLane;
+		convoys: ConvoysLane;
+		system: SystemLane;
+	};
+}
+
+export interface AgentsLane {
+	summary: {
+		total: number;
+		running: number;
+		idle: number;
+		with_work: number;
+	};
+	top_items: AgentSnapshot[];
+}
+
+export interface AgentSnapshot {
+	name: string;
+	role: string;
+	rig?: string;
+	running: boolean;
+	state?: string;
+	has_work: boolean;
+	work_id?: string;
+	work_title?: string;
+	unread_mail: number;
+}
+
+export interface WorkLane {
+	summary: {
+		ready: number;
+		in_progress: number;
+		blocked: number;
+		total_open: number;
+	};
+	top_items: WorkItem[];
+}
+
+export interface WorkItem {
+	id: string;
+	title: string;
+	status: string;
+	type: string;
+	priority: number;
+	assignee?: string;
+	worker?: string;
+}
+
+export interface ConvoysLane {
+	summary: {
+		open: number;
+		stranded: number;
+		synthesis_ready: number;
+	};
+	top_items: ConvoySnapshot[];
+}
+
+export interface ConvoySnapshot {
+	id: string;
+	title: string;
+	progress: string;
+	completed: number;
+	total: number;
+	is_stranded: boolean;
+	synthesis_ready: boolean;
+	active_workers: number;
+}
+
+export interface SystemLane {
+	health: "healthy" | "degraded" | "offline";
+	summary: {
+		rig_count: number;
+		polecat_count: number;
+		crew_count: number;
+		witness_count: number;
+		refinery_count: number;
+		active_hooks: number;
+	};
+	message_queue: {
+		pending: number;
+		in_flight: number;
+		blocked: number;
+		state: "idle" | "processing" | "blocked";
+	};
+	rigs: RigSnapshot[];
+}
+
+export interface RigSnapshot {
+	name: string;
+	polecat_count: number;
+	crew_count: number;
+	has_witness: boolean;
+	has_refinery: boolean;
+	mq_state?: "idle" | "processing" | "blocked";
+	hooks_active: number;
+}
