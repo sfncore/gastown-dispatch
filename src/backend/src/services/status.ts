@@ -1,64 +1,136 @@
-import { runGtJson, runGt } from "../commands/runner.js";
+/**
+ * Town status service with caching and graceful degradation.
+ *
+ * Caching strategy:
+ * - gt status: 5s TTL (within 2-5s range, using upper bound for large workspaces)
+ * - Stale-while-revalidate: Serves cached data while fetching fresh data
+ * - Graceful degradation: Continues to serve stale data during outages
+ */
+
+import { runGtJson } from "../commands/runner.js";
+import { Cache } from "./cache.js";
 import type { TownStatus } from "../types/gasown.js";
 
-let statusCache: { data: TownStatus; timestamp: number } | null = null;
-let pendingRequest: Promise<StatusResponse> | null = null;
-const CACHE_TTL = 5_000; // 5 seconds
+// TTL constants (in milliseconds)
+const STATUS_TTL = 5_000; // 5 seconds (upper bound of 2-5s range for reliability)
+const MAX_STALE_AGE = 60_000; // Serve stale data up to 1 minute during outages
 
 export interface StatusResponse {
 	initialized: boolean;
 	status?: TownStatus;
 	error?: string;
+	stale?: boolean;
 }
 
+// Status cache with graceful degradation
+let statusCache: Cache<TownStatus> | null = null;
+let currentTownRoot: string | undefined;
+
+/**
+ * Get or create the status cache for a town root.
+ */
+function getCache(townRoot?: string): Cache<TownStatus> {
+	// Reset cache if town root changes
+	if (townRoot !== currentTownRoot) {
+		statusCache = null;
+		currentTownRoot = townRoot;
+	}
+
+	if (!statusCache) {
+		statusCache = new Cache<TownStatus>(
+			async () => {
+				const status = await runGtJson<TownStatus>(["status"], {
+					cwd: townRoot,
+					timeout: 60_000, // Increase timeout to 60s for large workspaces
+				});
+				return status;
+			},
+			{
+				ttl: STATUS_TTL,
+				staleWhileRevalidate: true,
+				maxStaleAge: MAX_STALE_AGE,
+			},
+		);
+	}
+
+	return statusCache;
+}
+
+/**
+ * Get town status with caching and graceful degradation.
+ */
 export async function getTownStatus(
 	townRoot?: string,
 ): Promise<StatusResponse> {
-	const now = Date.now();
+	const cache = getCache(townRoot);
 
-	// Return cached data if still valid
-	if (statusCache && now - statusCache.timestamp < CACHE_TTL) {
-		return { initialized: true, status: statusCache.data };
-	}
+	try {
+		const status = await cache.get();
+		const stats = cache.getStats();
 
-	// If a request is already in progress, wait for it instead of starting a new one
-	if (pendingRequest) {
-		return pendingRequest;
-	}
+		return {
+			initialized: true,
+			status,
+			stale: cache.isDegraded(),
+			error: stats.lastError || undefined,
+		};
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
 
-	// Start a new request and cache the promise
-	pendingRequest = (async () => {
-		try {
-			const status = await runGtJson<TownStatus>(["status"], {
-				cwd: townRoot,
-				timeout: 60_000, // Increase timeout to 60s for large workspaces
-			});
-
-			statusCache = { data: status, timestamp: Date.now() };
-			return { initialized: true, status };
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-
-			// Check for "not in workspace" error
-			if (message.includes("not in a Gas Town workspace")) {
-				return {
-					initialized: false,
-					error:
-						"Not in a Gas Town workspace. Set GT_TOWN_ROOT or navigate to a Gas Town project.",
-				};
-			}
-
-			// Re-throw other errors
-			throw err;
-		} finally {
-			// Clear pending request when done
-			pendingRequest = null;
+		// Check for "not in workspace" error
+		if (message.includes("not in a Gas Town workspace")) {
+			return {
+				initialized: false,
+				error:
+					"Not in a Gas Town workspace. Set GT_TOWN_ROOT or navigate to a Gas Town project.",
+			};
 		}
-	})();
 
-	return pendingRequest;
+		// Try to return stale data if available
+		const staleData = cache.getCached();
+		if (staleData) {
+			return {
+				initialized: true,
+				status: staleData,
+				stale: true,
+				error: message,
+			};
+		}
+
+		// No data available
+		return {
+			initialized: false,
+			error: message,
+		};
+	}
 }
 
+/**
+ * Force invalidation of the status cache.
+ */
 export function invalidateStatusCache(): void {
-	statusCache = null;
+	if (statusCache) {
+		statusCache.invalidate();
+	}
+}
+
+/**
+ * Check if status is in degraded mode (serving stale data).
+ */
+export function isStatusDegraded(): boolean {
+	return statusCache?.isDegraded() ?? false;
+}
+
+/**
+ * Get status cache statistics for monitoring.
+ */
+export function getStatusCacheStats(): {
+	hits: number;
+	misses: number;
+	staleHits: number;
+	errors: number;
+	lastFetch: number | null;
+	lastError: string | null;
+} | null {
+	return statusCache?.getStats() ?? null;
 }
