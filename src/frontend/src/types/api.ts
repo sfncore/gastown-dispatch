@@ -165,39 +165,67 @@ export interface BeadFilters {
 	limit?: number;
 }
 
-// Rework Loop Detection Types
-export type MRStatus = "pending" | "in_flight" | "merged" | "failed" | "rejected";
-
+// Merge Queue types
 export interface MergeRequest {
 	id: string;
-	rig: string;
-	branch: string;
-	issue_id: string;
-	issue_title?: string;
-	status: MRStatus;
+	title: string;
+	description?: string;
+	status: string;
+	priority: number;
+	issue_type: string;
 	created_at: string;
-	updated_at?: string;
-	error?: string;
-	retry_count: number;
-}
-
-export interface ReworkLoop {
-	issue_id: string;
-	issue_title: string;
-	rig: string;
-	cycle_count: number;
-	time_stuck_ms: number;
-	time_stuck_display: string;
-	first_failure_at: string;
-	last_failure_at: string;
-	current_status: MRStatus;
+	updated_at: string;
+	closed_at?: string;
 	assignee?: string;
-	mr_id?: string;
+	blocked_by?: string[];
+	blocked_by_count?: number;
+	labels?: string[];
 }
 
-export interface ReworkLoopSummary {
-	total_loops: number;
-	total_time_stuck_ms: number;
-	loops: ReworkLoop[];
-	worst_offenders: ReworkLoop[];
+export interface MRStatusOutput {
+	id: string;
+	title: string;
+	status: string;
+	priority: number;
+	type: string;
+	assignee?: string;
+	created_at: string;
+	updated_at: string;
+	closed_at?: string;
+	branch?: string;
+	target?: string;
+	source_issue?: string;
+	worker?: string;
+	rig?: string;
+	merge_commit?: string;
+	close_reason?: string;
+	depends_on?: MRDependencyInfo[];
+	blocks?: MRDependencyInfo[];
+}
+
+export interface MRDependencyInfo {
+	id: string;
+	title: string;
+	status: string;
+	priority: number;
+	type: string;
+}
+
+export interface MQListFilters {
+	status?: string;
+	worker?: string;
+	epic?: string;
+	ready?: boolean;
+}
+
+export interface MQNextOptions {
+	strategy?: "priority" | "fifo";
+}
+
+export interface MQSummaryResponse {
+	total: number;
+	ready: number;
+	blocked: number;
+	in_progress: number;
+	items: MergeRequest[];
 }

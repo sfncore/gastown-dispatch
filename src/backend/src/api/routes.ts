@@ -45,18 +45,11 @@ import {
 	disableAllRigs,
 } from "../services/rigs.js";
 import {
-	getMailInbox,
-	readMailMessage,
-	getMailThread,
-	markMailRead,
-	markMailUnread,
-	archiveMail,
-} from "../services/mail.js";
-import {
-	detectReworkLoops,
-	getFailedMergeRequests,
-	getAllMergeRequests,
-} from "../services/analytics.js";
+	listMergeQueue,
+	getMergeRequestStatus,
+	getNextMergeRequest,
+	getMergeQueueSummary,
+} from "../services/mq.js";
 import type {
 	ConvoyCreateRequest,
 	ConvoyCloseRequest,
@@ -64,6 +57,8 @@ import type {
 	RigAddRequest,
 	CrewAddRequest,
 	BeadFilters,
+	MQListFilters,
+	MQNextOptions,
 } from "../types/gasown.js";
 
 const router = Router();
@@ -502,89 +497,65 @@ router.post(
 );
 
 // =====================
-// Mail
+// Merge Queue (MQ)
 // =====================
 
 router.get(
-	"/mail/inbox",
+	"/mq/:rig/list",
 	asyncHandler(async (req, res) => {
-		const filters = {
-			address: req.query.address as string | undefined,
-			unread: req.query.unread === "true",
+		const filters: MQListFilters = {
+			status: req.query.status as string | undefined,
+			worker: req.query.worker as string | undefined,
+			epic: req.query.epic as string | undefined,
+			ready: req.query.ready === "true",
 		};
-		const messages = await getMailInbox(filters, getTownRoot(req));
-		res.json(messages);
-	}),
-);
-
-router.get(
-	"/mail/messages/:id",
-	asyncHandler(async (req, res) => {
-		const message = await readMailMessage(req.params.id, getTownRoot(req));
-		res.json(message);
-	}),
-);
-
-router.get(
-	"/mail/threads/:threadId",
-	asyncHandler(async (req, res) => {
-		const messages = await getMailThread(
-			req.params.threadId,
+		const queue = await listMergeQueue(
+			req.params.rig,
+			filters,
 			getTownRoot(req),
 		);
-		res.json(messages);
+		res.json(queue);
 	}),
 );
-
-router.post(
-	"/mail/messages/:id/read",
-	asyncHandler(async (req, res) => {
-		const result = await markMailRead(req.params.id, getTownRoot(req));
-		res.json(result);
-	}),
-);
-
-router.post(
-	"/mail/messages/:id/unread",
-	asyncHandler(async (req, res) => {
-		const result = await markMailUnread(req.params.id, getTownRoot(req));
-		res.json(result);
-	}),
-);
-
-router.post(
-	"/mail/messages/:id/archive",
-	asyncHandler(async (req, res) => {
-		const result = await archiveMail(req.params.id, getTownRoot(req));
-		res.json(result);
-	}),
-);
-
-// =====================
-// Analytics
-// =====================
 
 router.get(
-	"/analytics/rework-loops",
+	"/mq/:rig/next",
 	asyncHandler(async (req, res) => {
-		const summary = await detectReworkLoops(getTownRoot(req));
+		const options: MQNextOptions = {
+			strategy: req.query.strategy as "priority" | "fifo" | undefined,
+		};
+		const next = await getNextMergeRequest(
+			req.params.rig,
+			options,
+			getTownRoot(req),
+		);
+		res.json(next);
+	}),
+);
+
+router.get(
+	"/mq/:rig/summary",
+	asyncHandler(async (req, res) => {
+		const summary = await getMergeQueueSummary(
+			req.params.rig,
+			getTownRoot(req),
+		);
 		res.json(summary);
 	}),
 );
 
 router.get(
-	"/analytics/merge-requests",
+	"/mq/status/:id",
 	asyncHandler(async (req, res) => {
-		const mrs = await getAllMergeRequests(getTownRoot(req));
-		res.json(mrs);
-	}),
-);
-
-router.get(
-	"/analytics/merge-requests/failed",
-	asyncHandler(async (req, res) => {
-		const mrs = await getFailedMergeRequests(getTownRoot(req));
-		res.json(mrs);
+		const status = await getMergeRequestStatus(
+			req.params.id,
+			getTownRoot(req),
+		);
+		if (!status) {
+			res.status(404).json({ success: false, message: "Merge request not found" });
+			return;
+		}
+		res.json(status);
 	}),
 );
 
