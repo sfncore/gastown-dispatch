@@ -26,6 +26,7 @@ import type { ConvoyDetail, TrackedIssueDetail } from "@/types/api";
 interface ConvoyDetailModalProps {
 	convoyId: string;
 	onClose: () => void;
+	initialData?: ConvoyDetail;
 }
 
 // Status badge component - shows convoy operational state
@@ -347,7 +348,7 @@ function SynthesisPanel({
 	);
 }
 
-export function ConvoyDetailModal({ convoyId, onClose }: ConvoyDetailModalProps) {
+export function ConvoyDetailModal({ convoyId, onClose, initialData }: ConvoyDetailModalProps) {
 	const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 	const [closeReason, setCloseReason] = useState("");
 	const navigate = useNavigate();
@@ -360,6 +361,9 @@ export function ConvoyDetailModal({ convoyId, onClose }: ConvoyDetailModalProps)
 	} = useQuery({
 		queryKey: ["convoy-detail", convoyId],
 		queryFn: () => getConvoyDetail(convoyId),
+		initialData,
+		// Show stale data immediately while refetching in background
+		staleTime: 0,
 		refetchInterval: 5_000,
 	});
 

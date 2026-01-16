@@ -355,6 +355,7 @@ export function ConvoyPanel({ convoys, sseConnected }: ConvoyPanelProps) {
 				<ConvoyDetailModal
 					convoyId={selectedConvoyId}
 					onClose={() => setSelectedConvoyId(null)}
+					initialData={convoys.find((c) => c.id === selectedConvoyId) as any}
 				/>
 			)}
 		</>
