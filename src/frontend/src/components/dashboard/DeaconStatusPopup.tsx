@@ -1,29 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
-import { X, Activity, Clock, AlertTriangle, CheckCircle2, PauseCircle, Server } from "lucide-react";
+import {
+	X,
+	Activity,
+	Clock,
+	AlertTriangle,
+	CheckCircle2,
+	PauseCircle,
+	Server,
+} from "lucide-react";
 import { getPatrolStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { PatrolStatus } from "@/types/api";
 
 interface DeaconStatusPopupProps {
 	onClose: () => void;
-}
-
-function formatUptime(ms: number): string {
-	const seconds = Math.floor(ms / 1000);
-	const minutes = Math.floor(seconds / 60);
-	const hours = Math.floor(minutes / 60);
-	const days = Math.floor(hours / 24);
-
-	if (days > 0) {
-		return `${days}d ${hours % 24}h ${minutes % 60}m`;
-	}
-	if (hours > 0) {
-		return `${hours}h ${minutes % 60}m`;
-	}
-	if (minutes > 0) {
-		return `${minutes}m ${seconds % 60}s`;
-	}
-	return `${seconds}s`;
 }
 
 function formatTimestamp(timestamp: string): string {
@@ -43,26 +33,93 @@ function formatTimestamp(timestamp: string): string {
 	return date.toLocaleTimeString();
 }
 
-function StatusBadge({ status }: { status: PatrolStatus["operational_mode"] }) {
+function getDegradedReason(patrolStatus: PatrolStatus): string | null {
+	if (patrolStatus.operational_mode !== "degraded") return null;
+
+	// Check boot degraded
+	if (patrolStatus.boot?.degraded) {
+		return "Boot process is in degraded state";
+	}
+
+	// Check patrol paused
+	if (patrolStatus.patrol_paused?.paused) {
+		return patrolStatus.patrol_paused.reason || "Patrol is paused";
+	}
+
+	// Check heartbeat age (>10 min = degraded)
+	if (patrolStatus.heartbeat?.timestamp) {
+		const heartbeatAge =
+			Date.now() - new Date(patrolStatus.heartbeat.timestamp).getTime();
+		const ageMinutes = Math.floor(heartbeatAge / 60000);
+		if (ageMinutes > 10) {
+			if (ageMinutes > 60) {
+				const hours = Math.floor(ageMinutes / 60);
+				return `No heartbeat for ${hours}+ hour${hours > 1 ? "s" : ""} (last: ${ageMinutes} min ago)`;
+			}
+			return `No heartbeat for ${ageMinutes} minutes (threshold: 10 min)`;
+		}
+	}
+
+	// No heartbeat at all
+	if (!patrolStatus.heartbeat) {
+		return "No heartbeat received from deacon";
+	}
+
+	return "Unknown degradation cause";
+}
+
+function StatusBadge({
+	status,
+	reason,
+}: {
+	status: PatrolStatus["operational_mode"];
+	reason?: string | null;
+}) {
 	const config = {
 		normal: { color: "bg-green-500", label: "NORMAL", icon: CheckCircle2 },
-		degraded: { color: "bg-yellow-500", label: "DEGRADED", icon: AlertTriangle },
+		degraded: {
+			color: "bg-yellow-500",
+			label: "DEGRADED",
+			icon: AlertTriangle,
+		},
 		offline: { color: "bg-red-500", label: "OFFLINE", icon: X },
 	};
 
 	const { color, label, icon: Icon } = config[status];
 
 	return (
-		<div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-lg", color.replace("bg-", "bg-") + "/20")}>
-			<Icon size={16} className={color.replace("bg-", "text-")} />
-			<span className={cn("font-bold text-sm uppercase tracking-wider", color.replace("bg-", "text-"))}>
-				{label}
-			</span>
+		<div className="flex flex-col items-center gap-1">
+			<div
+				className={cn(
+					"flex items-center gap-2 px-3 py-1.5 rounded-lg",
+					color.replace("bg-", "bg-") + "/20",
+				)}
+			>
+				<Icon size={16} className={color.replace("bg-", "text-")} />
+				<span
+					className={cn(
+						"font-bold text-sm uppercase tracking-wider",
+						color.replace("bg-", "text-"),
+					)}
+				>
+					{label}
+				</span>
+			</div>
+			{reason && (
+				<p className="text-xs text-yellow-400/80 text-center max-w-xs">
+					{reason}
+				</p>
+			)}
 		</div>
 	);
 }
 
-function StatRow({ label, value, icon: Icon, color = "text-slate-300" }: {
+function StatRow({
+	label,
+	value,
+	icon: Icon,
+	color = "text-slate-300",
+}: {
 	label: string;
 	value: string | React.ReactNode;
 	icon?: typeof Activity;
@@ -80,14 +137,21 @@ function StatRow({ label, value, icon: Icon, color = "text-slate-300" }: {
 }
 
 export function DeaconStatusPopup({ onClose }: DeaconStatusPopupProps) {
-	const { data: patrolStatus, isLoading, error } = useQuery({
+	const {
+		data: patrolStatus,
+		isLoading,
+		error,
+	} = useQuery({
 		queryKey: ["patrol-status"],
 		queryFn: getPatrolStatus,
 		refetchInterval: 5000,
 	});
 
 	return (
-		<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
+		<div
+			className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+			onClick={onClose}
+		>
 			<div
 				className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-w-md w-full"
 				onClick={(e) => e.stopPropagation()}
@@ -96,7 +160,9 @@ export function DeaconStatusPopup({ onClose }: DeaconStatusPopupProps) {
 				<div className="flex items-center justify-between p-4 border-b border-slate-700">
 					<div className="flex items-center gap-3">
 						<Server size={20} className="text-blue-400" />
-						<h2 className="text-lg font-semibold text-slate-100">Deacon Status</h2>
+						<h2 className="text-lg font-semibold text-slate-100">
+							Deacon Status
+						</h2>
 					</div>
 					<button
 						onClick={onClose}
@@ -116,7 +182,9 @@ export function DeaconStatusPopup({ onClose }: DeaconStatusPopupProps) {
 
 					{error && (
 						<div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
-							<p className="text-sm text-red-400">Failed to load patrol status</p>
+							<p className="text-sm text-red-400">
+								Failed to load patrol status
+							</p>
 						</div>
 					)}
 
@@ -124,7 +192,10 @@ export function DeaconStatusPopup({ onClose }: DeaconStatusPopupProps) {
 						<>
 							{/* Overall Status */}
 							<div className="flex items-center justify-center pb-2">
-								<StatusBadge status={patrolStatus.operational_mode} />
+								<StatusBadge
+									status={patrolStatus.operational_mode}
+									reason={getDegradedReason(patrolStatus)}
+								/>
 							</div>
 
 							{/* Health Section */}
@@ -133,25 +204,29 @@ export function DeaconStatusPopup({ onClose }: DeaconStatusPopupProps) {
 									Health Status
 								</h3>
 								<StatRow
-									label="Deacon State"
-									value={patrolStatus.deacon_state || "unknown"}
-									icon={Activity}
-									color={
-										patrolStatus.deacon_state === "running" ? "text-green-400" :
-										patrolStatus.deacon_state === "paused" ? "text-yellow-400" :
-										patrolStatus.deacon_state === "error" ? "text-red-400" :
-										"text-slate-500"
+									label="Patrol Count"
+									value={
+										patrolStatus.deacon_state?.patrol_count?.toString() || "0"
 									}
+									icon={Activity}
+									color="text-green-400"
 								/>
 								<StatRow
 									label="Boot Status"
-									value={patrolStatus.boot || "unknown"}
+									value={
+										patrolStatus.boot?.degraded
+											? "DEGRADED"
+											: patrolStatus.boot?.running
+												? "RUNNING"
+												: "READY"
+									}
 									icon={Server}
 									color={
-										patrolStatus.boot === "ready" ? "text-green-400" :
-										patrolStatus.boot === "degraded" ? "text-yellow-400" :
-										patrolStatus.boot === "failed" ? "text-red-400" :
-										"text-slate-500"
+										patrolStatus.boot?.degraded
+											? "text-yellow-400"
+											: patrolStatus.boot?.running
+												? "text-blue-400"
+												: "text-green-400"
 									}
 								/>
 								{patrolStatus.degraded_mode && (
@@ -173,19 +248,26 @@ export function DeaconStatusPopup({ onClose }: DeaconStatusPopupProps) {
 									label="Patrol"
 									value={patrolStatus.patrol_muted ? "MUTED" : "ACTIVE"}
 									icon={patrolStatus.patrol_muted ? PauseCircle : Activity}
-									color={patrolStatus.patrol_muted ? "text-yellow-400" : "text-green-400"}
+									color={
+										patrolStatus.patrol_muted
+											? "text-yellow-400"
+											: "text-green-400"
+									}
 								/>
-								{patrolStatus.patrol_paused?.paused && patrolStatus.patrol_paused.reason && (
-									<StatRow
-										label="Pause Reason"
-										value={patrolStatus.patrol_paused.reason}
-										color="text-yellow-400"
-									/>
-								)}
+								{patrolStatus.patrol_paused?.paused &&
+									patrolStatus.patrol_paused.reason && (
+										<StatRow
+											label="Pause Reason"
+											value={patrolStatus.patrol_paused.reason}
+											color="text-yellow-400"
+										/>
+									)}
 								{patrolStatus.patrol_paused?.paused_at && (
 									<StatRow
 										label="Paused At"
-										value={formatTimestamp(patrolStatus.patrol_paused.paused_at)}
+										value={formatTimestamp(
+											patrolStatus.patrol_paused.paused_at,
+										)}
 										icon={Clock}
 										color="text-slate-400"
 									/>
@@ -205,23 +287,29 @@ export function DeaconStatusPopup({ onClose }: DeaconStatusPopupProps) {
 										color="text-slate-300"
 									/>
 									<StatRow
-										label="Uptime"
-										value={formatUptime(patrolStatus.heartbeat.uptime_ms)}
+										label="Cycle"
+										value={patrolStatus.heartbeat.cycle.toString()}
+										color="text-blue-400"
+									/>
+									<StatRow
+										label="Healthy Agents"
+										value={patrolStatus.heartbeat.healthy_agents.toString()}
+										icon={Activity}
 										color="text-green-400"
 									/>
-									{patrolStatus.heartbeat.last_patrol && (
+									{patrolStatus.heartbeat.unhealthy_agents > 0 && (
 										<StatRow
-											label="Last Patrol"
-											value={formatTimestamp(patrolStatus.heartbeat.last_patrol)}
-											icon={Activity}
-											color="text-slate-300"
+											label="Unhealthy Agents"
+											value={patrolStatus.heartbeat.unhealthy_agents.toString()}
+											icon={AlertTriangle}
+											color="text-red-400"
 										/>
 									)}
-									{patrolStatus.heartbeat.error && (
-										<div className="mt-2 bg-red-900/20 border border-red-500/30 rounded p-2">
-											<p className="text-xs text-red-400">
-												<AlertTriangle size={12} className="inline mr-1" />
-												{patrolStatus.heartbeat.error}
+									{patrolStatus.heartbeat.last_action && (
+										<div className="mt-2 bg-slate-700/50 rounded p-2">
+											<p className="text-xs text-slate-300">
+												<Activity size={12} className="inline mr-1" />
+												{patrolStatus.heartbeat.last_action}
 											</p>
 										</div>
 									)}
@@ -229,7 +317,8 @@ export function DeaconStatusPopup({ onClose }: DeaconStatusPopupProps) {
 							)}
 
 							{/* Alerts Section */}
-							{(patrolStatus.heartbeat?.error || patrolStatus.degraded_mode) && (
+							{((patrolStatus.heartbeat?.unhealthy_agents ?? 0) > 0 ||
+								patrolStatus.degraded_mode) && (
 								<div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
 									<h3 className="text-xs uppercase text-red-400 font-semibold mb-2 tracking-wider flex items-center gap-1">
 										<AlertTriangle size={12} />
@@ -240,9 +329,10 @@ export function DeaconStatusPopup({ onClose }: DeaconStatusPopupProps) {
 											• System is in degraded mode
 										</p>
 									)}
-									{patrolStatus.heartbeat?.error && (
+									{(patrolStatus.heartbeat?.unhealthy_agents ?? 0) > 0 && (
 										<p className="text-sm text-red-300">
-											• {patrolStatus.heartbeat.error}
+											• {patrolStatus.heartbeat?.unhealthy_agents} unhealthy
+											agent(s)
 										</p>
 									)}
 								</div>

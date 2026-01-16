@@ -249,15 +249,30 @@ export interface MailInboxFilters {
 }
 
 // Patrol (Deacon) types
-export type DeaconState = "running" | "paused" | "stopped" | "error";
-export type BootStatus = "booting" | "ready" | "failed" | "degraded";
-
 export interface DeaconHeartbeat {
 	timestamp: string;
-	state: DeaconState;
-	uptime_ms: number;
-	last_patrol?: string;
-	error?: string;
+	cycle: number;
+	last_action: string;
+	healthy_agents: number;
+	unhealthy_agents: number;
+}
+
+export interface BootStatusInfo {
+	boot_dir: string;
+	degraded: boolean;
+	last_status: {
+		running: boolean;
+		started_at: string;
+		completed_at: string;
+	};
+	running: boolean;
+	session_alive: boolean;
+}
+
+export interface DeaconStateInfo {
+	patrol_count: number;
+	last_patrol: string;
+	extraordinary_action: boolean;
 }
 
 export interface PatrolPausedState {
@@ -268,8 +283,8 @@ export interface PatrolPausedState {
 
 export interface PatrolStatus {
 	heartbeat: DeaconHeartbeat | null;
-	boot: BootStatus | null;
-	deacon_state: DeaconState | null;
+	boot: BootStatusInfo | null;
+	deacon_state: DeaconStateInfo | null;
 	patrol_muted: boolean;
 	patrol_paused: PatrolPausedState | null;
 	degraded_mode: boolean;
