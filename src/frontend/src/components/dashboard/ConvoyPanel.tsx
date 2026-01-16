@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Truck, ExternalLink, AlertTriangle, Users, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn, calculateConvoyETA, type ConvoyETA } from "@/lib/utils";
 import type { Convoy, TrackedIssue } from "@/types/api";
+import { ConvoyDetailModal } from "./ConvoyDetailModal";
 
 interface ConvoyPanelProps {
 	convoys: Convoy[];
@@ -233,6 +235,7 @@ function ConvoySummary({ convoys, etas }: { convoys: Convoy[]; etas: ConvoyETA[]
 
 export function ConvoyPanel({ convoys, sseConnected }: ConvoyPanelProps) {
 	const navigate = useNavigate();
+	const [selectedConvoyId, setSelectedConvoyId] = useState<string | null>(null);
 
 	// Calculate ETA for each convoy
 	const etas = convoys.map((convoy) =>
@@ -248,58 +251,68 @@ export function ConvoyPanel({ convoys, sseConnected }: ConvoyPanelProps) {
 	);
 
 	const handleConvoyClick = (convoyId: string) => {
-		navigate(`/convoys?selected=${convoyId}`);
+		setSelectedConvoyId(convoyId);
 	};
 
 	return (
-		<div className="bg-slate-900/80 border border-slate-700 rounded-lg p-3 flex-1 overflow-hidden flex flex-col">
-			{/* Header */}
-			<div className="flex items-center gap-2 mb-3">
-				<Truck size={16} className="text-purple-400" />
-				<span className="text-sm font-semibold text-slate-200">Active Convoys</span>
-				<span className="text-xs px-1.5 py-0.5 bg-purple-900 text-purple-300 rounded-full">
-					{convoys.length}
-				</span>
-				{sseConnected !== undefined && (
-					<span
-						className={cn(
-							"w-1.5 h-1.5 rounded-full",
-							sseConnected ? "bg-green-500 animate-pulse" : "bg-slate-600"
-						)}
-						title={sseConnected ? "Real-time connected" : "Connecting..."}
-					/>
-				)}
-				<button
-					onClick={() => navigate("/convoys")}
-					className="ml-auto text-[10px] text-slate-400 hover:text-slate-200 flex items-center gap-1"
-				>
-					View all <ExternalLink size={10} />
-				</button>
-			</div>
-
-			{/* Convoy list */}
-			<div className="space-y-2 flex-1 min-h-0 overflow-y-auto">
-				{convoys.length === 0 ? (
-					<div className="text-xs text-slate-500 text-center py-4">
-						No active convoys
-						<div className="mt-1 text-slate-600">
-							Create one with <code className="text-purple-400">gt convoy create</code>
-						</div>
-					</div>
-				) : (
-					convoys.map((convoy, i) => (
-						<ConvoyDashboardCard
-							key={convoy.id}
-							convoy={convoy}
-							eta={etas[i]}
-							onClick={() => handleConvoyClick(convoy.id)}
+		<>
+			<div className="bg-slate-900/80 border border-slate-700 rounded-lg p-3 flex-1 overflow-hidden flex flex-col">
+				{/* Header */}
+				<div className="flex items-center gap-2 mb-3">
+					<Truck size={16} className="text-purple-400" />
+					<span className="text-sm font-semibold text-slate-200">Active Convoys</span>
+					<span className="text-xs px-1.5 py-0.5 bg-purple-900 text-purple-300 rounded-full">
+						{convoys.length}
+					</span>
+					{sseConnected !== undefined && (
+						<span
+							className={cn(
+								"w-1.5 h-1.5 rounded-full",
+								sseConnected ? "bg-green-500 animate-pulse" : "bg-slate-600"
+							)}
+							title={sseConnected ? "Real-time connected" : "Connecting..."}
 						/>
-					))
-				)}
+					)}
+					<button
+						onClick={() => navigate("/convoys")}
+						className="ml-auto text-[10px] text-slate-400 hover:text-slate-200 flex items-center gap-1"
+					>
+						View all <ExternalLink size={10} />
+					</button>
+				</div>
+
+				{/* Convoy list */}
+				<div className="space-y-2 flex-1 min-h-0 overflow-y-auto">
+					{convoys.length === 0 ? (
+						<div className="text-xs text-slate-500 text-center py-4">
+							No active convoys
+							<div className="mt-1 text-slate-600">
+								Create one with <code className="text-purple-400">gt convoy create</code>
+							</div>
+						</div>
+					) : (
+						convoys.map((convoy, i) => (
+							<ConvoyDashboardCard
+								key={convoy.id}
+								convoy={convoy}
+								eta={etas[i]}
+								onClick={() => handleConvoyClick(convoy.id)}
+							/>
+						))
+					)}
+				</div>
+
+				{/* Summary stats */}
+				{convoys.length > 0 && <ConvoySummary convoys={convoys} etas={etas} />}
 			</div>
 
-			{/* Summary stats */}
-			{convoys.length > 0 && <ConvoySummary convoys={convoys} etas={etas} />}
-		</div>
+			{/* Convoy Detail Modal */}
+			{selectedConvoyId && (
+				<ConvoyDetailModal
+					convoyId={selectedConvoyId}
+					onClose={() => setSelectedConvoyId(null)}
+				/>
+			)}
+		</>
 	);
 }
