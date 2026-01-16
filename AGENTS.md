@@ -1,3 +1,24 @@
+<!-- TEMPORARY WORKAROUND - Remove when bd v0.48+ fixes this -->
+## Beads Bug Workaround (bd v0.47.x)
+
+**Problem**: `bd create` in this repo uses wrong `hq-` prefix and fails to persist.
+
+**Workaround**:
+- `bd update <existing-id>` works fine - use it to add task checklists to existing beads
+- `bd show`, `bd list`, `bd sync` all work correctly
+- For NEW beads, run from inside Gas Town:
+  ```bash
+  cd ~/gt/gtdispat/crew/erik  # or any dir under ~/gt/gtdispat
+  bd create "Title" --type task --priority 2 --labels "pipeline"
+  ```
+- Or add tasks as checkbox items in existing bead descriptions instead of creating child beads
+
+**Signs you hit this bug**:
+- Created beads have `hq-` prefix instead of `gtdispat-`
+- "auto-flush failed: database is closed" warnings
+- `--parent` flag fails with "parent issue not found"
+<!-- END TEMPORARY WORKAROUND -->
+
 <!-- OPENSPEC:START -->
 # OpenSpec Instructions
 
@@ -240,3 +261,29 @@ git push                # Push to remote
 - Always `bd sync` before ending session
 
 <!-- end-bv-agent-instructions -->
+
+## Landing the Plane (Session Completion)
+
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+
+**MANDATORY WORKFLOW:**
+
+1. **File issues for remaining work** - Create issues for anything that needs follow-up
+2. **Run quality gates** (if code changed) - Tests, linters, builds
+3. **Update issue status** - Close finished work, update in-progress items
+4. **PUSH TO REMOTE** - This is MANDATORY:
+   ```bash
+   git pull --rebase
+   bd sync
+   git push
+   git status  # MUST show "up to date with origin"
+   ```
+5. **Clean up** - Clear stashes, prune remote branches
+6. **Verify** - All changes committed AND pushed
+7. **Hand off** - Provide context for next session
+
+**CRITICAL RULES:**
+- Work is NOT complete until `git push` succeeds
+- NEVER stop before pushing - that leaves work stranded locally
+- NEVER say "ready to push when you are" - YOU must push
+- If push fails, resolve and retry until it succeeds
