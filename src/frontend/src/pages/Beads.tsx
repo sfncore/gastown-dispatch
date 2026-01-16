@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import {
   RefreshCw,
   Plus,
@@ -35,11 +36,22 @@ import {
 import type { BeadFilters, Bead } from "@/types/api";
 
 export default function Beads() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState<BeadFilters>({ limit: 50 });
   const [view, setView] = useState<"all" | "ready">("all");
   const [selectedBeadId, setSelectedBeadId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const queryClient = useQueryClient();
+
+  // Handle bead selection from URL parameter
+  useEffect(() => {
+    const beadParam = searchParams.get("bead");
+    if (beadParam && beadParam !== selectedBeadId) {
+      setSelectedBeadId(beadParam);
+      // Clear the URL parameter after processing
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, selectedBeadId, setSearchParams]);
 
   const {
     data: beads,

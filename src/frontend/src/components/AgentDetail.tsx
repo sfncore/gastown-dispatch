@@ -1,4 +1,5 @@
-import { Terminal, MessageSquare, Trash2, AlertTriangle } from "lucide-react";
+import { Terminal, MessageSquare, Trash2, AlertTriangle, ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { AgentRuntime } from "@/types/api";
 
@@ -17,6 +18,15 @@ export function AgentDetail({
 	onRemove,
 	onNuke,
 }: AgentDetailProps) {
+	const navigate = useNavigate();
+
+	const handleWorkTitleClick = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (agent.hook_bead) {
+			navigate(`/beads?bead=${encodeURIComponent(agent.hook_bead)}`);
+		}
+	};
+
 	const getRoleColor = (role: string) => {
 		switch (role) {
 			case "mayor":
@@ -89,7 +99,17 @@ export function AgentDetail({
 						<div className="flex items-start gap-2">
 							<span className="text-blue-400">📌</span>
 							<div className="flex-1">
-								<p className="font-medium">{agent.work_title || "Untitled"}</p>
+								{agent.hook_bead ? (
+									<button
+										onClick={handleWorkTitleClick}
+										className="font-medium text-left hover:text-gt-accent transition-colors group flex items-center gap-1"
+									>
+										{agent.work_title || "Untitled"}
+										<ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+									</button>
+								) : (
+									<p className="font-medium">{agent.work_title || "Untitled"}</p>
+								)}
 								{agent.hook_bead && (
 									<p className="text-sm text-gt-muted mt-1">Bead: {agent.hook_bead}</p>
 								)}

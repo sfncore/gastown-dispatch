@@ -9,7 +9,9 @@ import {
 	Flame,
 	Zap,
 	ChevronRight,
+	ExternalLink,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { RigStatus, AgentHookInfo } from "@/types/api";
 
@@ -19,11 +21,25 @@ interface RigDetailProps {
 }
 
 export function RigDetail({ rig, onSelectAgent }: RigDetailProps) {
+	const navigate = useNavigate();
 	const agents = rig.agents || [];
 	const hooks = rig.hooks || [];
 	const runningAgents = agents.filter((a) => a.running).length;
 	const workingAgents = agents.filter((a) => a.has_work).length;
 	const totalMail = agents.reduce((sum, a) => sum + (a.unread_mail || 0), 0);
+
+	// Create a map from agent name to hook_bead for quick lookup
+	const agentBeadMap = new Map<string, string>();
+	agents.forEach((agent) => {
+		if (agent.hook_bead) {
+			agentBeadMap.set(agent.name, agent.hook_bead);
+		}
+	});
+
+	const handleBeadClick = (beadId: string, e: React.MouseEvent) => {
+		e.stopPropagation();
+		navigate(`/beads?bead=${encodeURIComponent(beadId)}`);
+	};
 
 	// Get MQ status
 	const mq = rig.mq;
@@ -206,7 +222,12 @@ export function RigDetail({ rig, onSelectAgent }: RigDetailProps) {
 							{hooks
 								.filter((h) => h.has_work)
 								.map((hook) => (
-									<HookCard key={hook.agent} hook={hook} />
+									<HookCard
+										key={hook.agent}
+										hook={hook}
+										beadId={agentBeadMap.get(hook.agent)}
+										onBeadClick={handleBeadClick}
+									/>
 								))}
 						</div>
 					)}
@@ -257,7 +278,18 @@ export function RigDetail({ rig, onSelectAgent }: RigDetailProps) {
 									</div>
 									<div className="flex items-center gap-2 text-gt-muted">
 										{agent.has_work && (
-											<span className="text-xs text-green-400">working</span>
+											agent.hook_bead ? (
+												<button
+													onClick={(e) => handleBeadClick(agent.hook_bead!, e)}
+													className="text-xs text-green-400 hover:text-green-300 hover:underline flex items-center gap-0.5"
+													title={`View bead: ${agent.hook_bead}`}
+												>
+													working
+													<ExternalLink size={8} />
+												</button>
+											) : (
+												<span className="text-xs text-green-400">working</span>
+											)
 										)}
 										{agent.unread_mail > 0 && (
 											<span className="text-xs text-purple-400">
@@ -276,7 +308,7 @@ export function RigDetail({ rig, onSelectAgent }: RigDetailProps) {
 	);
 }
 
-function HookCard({ hook }: { hook: AgentHookInfo }) {
+function HookCard({ hook, beadId, onBeadClick }: { hook: AgentHookInfo; beadId?: string; onBeadClick?: (beadId: string, e: React.MouseEvent) => void }) {
 	const getRoleColor = (role: string) => {
 		switch (role) {
 			case "polecat":
@@ -301,7 +333,17 @@ function HookCard({ hook }: { hook: AgentHookInfo }) {
 						</span>
 					</div>
 					{hook.title && (
-						<p className="text-sm text-gt-text">{hook.title}</p>
+						beadId && onBeadClick ? (
+							<button
+								onClick={(e) => onBeadClick(beadId, e)}
+								className="text-sm text-gt-text hover:text-gt-accent transition-colors group flex items-center gap-1 text-left"
+							>
+								{hook.title}
+								<ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+							</button>
+						) : (
+							<p className="text-sm text-gt-text">{hook.title}</p>
+						)
 					)}
 				</div>
 			</div>

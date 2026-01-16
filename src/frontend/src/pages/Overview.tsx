@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import {
 	RefreshCw,
 	Play,
@@ -12,6 +13,7 @@ import {
 	Users,
 	Package,
 	Radio,
+	ExternalLink,
 } from "lucide-react";
 import { getStatus, getConvoys, getBeads, startTown, shutdownTown } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -68,13 +70,14 @@ function DigitalCounter({ value, label, color = "text-green-400", digits = 3 }: 
 }
 
 // Queue level indicator (industrial silo style) - Note: MQ data not available from gt status
-function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive = false }: {
+function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive = false, onRigClick }: {
 	pending: number;
 	inFlight: number;
 	blocked: number;
 	max?: number;
 	label: string;
 	isRigActive?: boolean;
+	onRigClick?: () => void;
 }) {
 	const total = pending + inFlight + blocked;
 	const fillPercent = Math.min(100, (total / max) * 100);
@@ -83,15 +86,31 @@ function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive =
 
 	return (
 		<div className={cn("flex flex-col items-center flex-shrink-0", !isRigActive && "opacity-50")}>
-			<div className={cn(
-				"text-[9px] sm:text-[10px] md:text-[11px] lg:text-xs uppercase mb-2 font-bold tracking-wide text-center max-w-[60px] sm:max-w-[70px] md:max-w-[80px] lg:max-w-[90px] truncate",
-				!isRigActive ? "text-slate-600" :
-				hasBlocked ? "text-red-400" :
-				isActive ? "text-blue-400" :
-				"text-slate-400"
-			)} title={label}>
-				{label}
-			</div>
+			{onRigClick ? (
+				<button
+					onClick={onRigClick}
+					className={cn(
+						"text-[9px] sm:text-[10px] md:text-[11px] lg:text-xs uppercase mb-2 font-bold tracking-wide text-center max-w-[60px] sm:max-w-[70px] md:max-w-[80px] lg:max-w-[90px] truncate hover:underline cursor-pointer transition-colors",
+						!isRigActive ? "text-slate-600 hover:text-slate-500" :
+						hasBlocked ? "text-red-400 hover:text-red-300" :
+						isActive ? "text-blue-400 hover:text-blue-300" :
+						"text-slate-400 hover:text-slate-300"
+					)}
+					title={`View ${label} rig details`}
+				>
+					{label}
+				</button>
+			) : (
+				<div className={cn(
+					"text-[9px] sm:text-[10px] md:text-[11px] lg:text-xs uppercase mb-2 font-bold tracking-wide text-center max-w-[60px] sm:max-w-[70px] md:max-w-[80px] lg:max-w-[90px] truncate",
+					!isRigActive ? "text-slate-600" :
+					hasBlocked ? "text-red-400" :
+					isActive ? "text-blue-400" :
+					"text-slate-400"
+				)} title={label}>
+					{label}
+				</div>
+			)}
 
 			{/* Silo container */}
 			<div className="relative">
@@ -204,9 +223,10 @@ function QueueLevel({ pending, inFlight, blocked, max = 20, label, isRigActive =
 }
 
 // Rig station panel (like a processing unit control panel)
-function RigStation({ rig, isActive }: {
+function RigStation({ rig, isActive, onRigClick }: {
 	rig: RigStatus;
 	isActive: boolean;
+	onRigClick?: () => void;
 }) {
 	// Calculate real metrics from rig agents
 	const rigAgents = rig.agents || [];
@@ -223,15 +243,31 @@ function RigStation({ rig, isActive }: {
 		)}>
 			{/* Header */}
 			<div className="flex items-center justify-between mb-3">
-				<div className="flex items-center gap-2">
-					<Server size={14} className={isActive ? "text-blue-400" : "text-slate-600"} />
-					<span className={cn(
-						"font-mono text-sm font-bold uppercase",
-						isActive ? "text-slate-200" : "text-slate-500"
-					)}>
-						{rig.name}
-					</span>
-				</div>
+				{onRigClick ? (
+					<button
+						onClick={onRigClick}
+						className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+						title={`View ${rig.name} rig details`}
+					>
+						<Server size={14} className={isActive ? "text-blue-400" : "text-slate-600"} />
+						<span className={cn(
+							"font-mono text-sm font-bold uppercase hover:underline",
+							isActive ? "text-slate-200" : "text-slate-500"
+						)}>
+							{rig.name}
+						</span>
+					</button>
+				) : (
+					<div className="flex items-center gap-2">
+						<Server size={14} className={isActive ? "text-blue-400" : "text-slate-600"} />
+						<span className={cn(
+							"font-mono text-sm font-bold uppercase",
+							isActive ? "text-slate-200" : "text-slate-500"
+						)}>
+							{rig.name}
+						</span>
+					</div>
+				)}
 				{isActive && (
 					<div className="flex items-center gap-1">
 						{workingAgents > 0 && (
@@ -633,7 +669,7 @@ function ControlHeader({ status, deaconRunning, onRefresh, onStart, onShutdown, 
 }
 
 // Industrial control room visualization
-function AgentFlow({ agents, rigs, onMayorClick }: { agents: AgentRuntime[]; rigs: RigStatus[]; onMayorClick?: () => void }) {
+function AgentFlow({ agents, rigs, onMayorClick, onWorkClick }: { agents: AgentRuntime[]; rigs: RigStatus[]; onMayorClick?: () => void; onWorkClick?: (beadId: string) => void }) {
 	const [showDeaconPopup, setShowDeaconPopup] = useState(false);
 	const mayor = agents.find(a => a.name === "mayor");
 	const deacon = agents.find(a => a.name === "deacon");
@@ -700,9 +736,23 @@ function AgentFlow({ agents, rigs, onMayorClick }: { agents: AgentRuntime[]; rig
 						)}
 					</div>
 					{mayor?.work_title && (
-						<div className="text-[8px] text-slate-400 mt-0.5 max-w-16 truncate text-center">
-							{mayor.work_title}
-						</div>
+						mayor.hook_bead && onWorkClick ? (
+							<button
+								onClick={(e) => {
+									e.stopPropagation();
+									onWorkClick(mayor.hook_bead!);
+								}}
+								className="text-[8px] text-slate-400 hover:text-gt-accent mt-0.5 max-w-16 truncate text-center flex items-center gap-0.5 group"
+								title={`View bead: ${mayor.hook_bead}`}
+							>
+								{mayor.work_title}
+								<ExternalLink size={6} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+							</button>
+						) : (
+							<div className="text-[8px] text-slate-400 mt-0.5 max-w-16 truncate text-center">
+								{mayor.work_title}
+							</div>
+						)
 					)}
 				</button>
 
@@ -801,7 +851,16 @@ function AgentFlow({ agents, rigs, onMayorClick }: { agents: AgentRuntime[]; rig
 const TREND_BUFFER_SIZE = 60;
 
 export default function Overview() {
+	const navigate = useNavigate();
 	const [showMayorModal, setShowMayorModal] = useState(false);
+
+	const handleRigClick = (rigName: string) => {
+		navigate(`/rigs?rig=${encodeURIComponent(rigName)}`);
+	};
+
+	const handleBeadClick = (beadId: string) => {
+		navigate(`/beads?bead=${encodeURIComponent(beadId)}`);
+	};
 
 	const {
 		data: statusResponse,
@@ -1001,7 +1060,7 @@ export default function Overview() {
 					{/* Center panel - Main schematic */}
 					<div className="col-span-6 flex flex-col gap-4">
 						{/* Agent hierarchy */}
-						<AgentFlow agents={status.agents} rigs={status.rigs} onMayorClick={() => setShowMayorModal(true)} />
+						<AgentFlow agents={status.agents} rigs={status.rigs} onMayorClick={() => setShowMayorModal(true)} onWorkClick={handleBeadClick} />
 
 						{/* Work pipeline */}
 						<WorkPipeline beads={beads} />
@@ -1026,6 +1085,7 @@ export default function Overview() {
 												inFlight={rig.mq?.in_flight || 0}
 												blocked={rig.mq?.blocked || 0}
 												isRigActive={rig.polecat_count > 0 || rig.crew_count > 0}
+												onRigClick={() => handleRigClick(rig.name)}
 											/>
 										))}
 									</div>
@@ -1050,6 +1110,7 @@ export default function Overview() {
 									key={rig.name}
 									rig={rig}
 									isActive={rig.polecat_count > 0 || rig.crew_count > 0}
+									onRigClick={() => handleRigClick(rig.name)}
 								/>
 							))
 						)}
