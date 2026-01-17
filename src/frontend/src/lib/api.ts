@@ -192,6 +192,20 @@ export async function shutdownTown(): Promise<ActionResult> {
 	return fetchJson<ActionResult>("/actions/shutdown", { method: "POST" });
 }
 
+/**
+ * Reload gt after source code update.
+ * SAFE: Only restarts long-running gt processes (status-line, daemon).
+ * Does NOT touch Mayor/Deacon sessions or other infrastructure.
+ */
+export async function reloadGt(): Promise<ActionResult> {
+	return fetchJson<ActionResult>("/actions/reload", { method: "POST" });
+}
+
+/**
+ * @deprecated Use reloadGt() instead. This function shuts down the entire
+ * Gas Town infrastructure which can crash the system if gtdispatch is
+ * running inside Gas Town.
+ */
 export async function restartTown(): Promise<ActionResult> {
 	// Shutdown first, then start
 	const shutdownResult = await shutdownTown();

@@ -17,7 +17,7 @@ import {
 	Loader2,
 	X,
 } from "lucide-react";
-import { getStatus, getConvoys, getBeads, startTown, shutdownTown } from "@/lib/api";
+import { getStatus, getConvoys, getBeads, startTown, shutdownTown, reloadGt } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useMemo, useRef } from "react";
 import type { TownStatus, RigStatus, AgentRuntime, Bead } from "@/types/api";
@@ -452,22 +452,28 @@ function StartupProgressOverlay({
 				};
 			case "starting":
 				return {
-					label: "Starting Services",
-					description: "Initializing Gas Town...",
-					progress: isRestart ? 75 : 50,
+					label: isRestart ? "Reloading" : "Starting Services",
+					description: isRestart
+						? "Restarting gt status-line and daemon..."
+						: "Initializing Gas Town...",
+					progress: isRestart ? 50 : 50,
 					color: "text-blue-400"
 				};
 			case "waiting":
 				return {
 					label: "Waiting for Services",
-					description: "Waiting for deacon to come online...",
+					description: isRestart
+						? "Waiting for processes to respawn..."
+						: "Waiting for deacon to come online...",
 					progress: 90,
 					color: "text-blue-400"
 				};
 			case "complete":
 				return {
 					label: "Complete",
-					description: isRestart ? "Gas Town restarted successfully!" : "Gas Town started successfully!",
+					description: isRestart
+						? "gt reloaded! New commands will use updated binary."
+						: "Gas Town started successfully!",
 					progress: 100,
 					color: "text-green-400"
 				};
@@ -505,7 +511,7 @@ function StartupProgressOverlay({
 							<AlertCircle className="w-6 h-6 text-red-400" />
 						)}
 						<h3 className="text-lg font-bold text-slate-100">
-							{isRestart ? "Restarting Gas Town" : "Starting Gas Town"}
+							{isRestart ? "Reloading gt" : "Starting Gas Town"}
 						</h3>
 					</div>
 					{isFinished && (
@@ -678,10 +684,11 @@ function ControlHeader({ status, deaconRunning, onRefresh, onStart, onRestart, o
 
 						{deaconRunning ? (
 							<>
-								{/* Restart button when running */}
+								{/* Reload button - safe reload of gt after source update */}
 								<button
 									onClick={onRestart}
 									disabled={isStarting}
+									title="Reload gt after source update (restarts status-line and daemon only)"
 									className={cn(
 										"flex items-center gap-2 px-3 py-2 rounded border transition-all",
 										"bg-blue-900 hover:bg-blue-800 border-blue-700",
@@ -694,7 +701,7 @@ function ControlHeader({ status, deaconRunning, onRefresh, onStart, onRestart, o
 									) : (
 										<RotateCw size={14} />
 									)}
-									<span className="text-sm font-bold">RESTART</span>
+									<span className="text-sm font-bold">RELOAD</span>
 								</button>
 								{/* Stop button */}
 								<button
@@ -1032,40 +1039,29 @@ export default function Overview() {
 	};
 
 	const handleRestart = async () => {
+		// Safe reload: only restarts long-running gt processes (status-line, daemon)
+		// Does NOT touch Mayor/Deacon sessions - they invoke gt commands which
+		// will automatically use the new binary after reload.
 		setShowStartupOverlay(true);
 		setIsRestartOperation(true);
-		setStartupPhase("stopping");
+		setStartupPhase("starting"); // Skip "stopping" - we're not shutting down infrastructure
 		setStartupError(undefined);
 
 		try {
-			// Stop first
-			const stopResult = await shutdownTown();
-			if (!stopResult.success) {
+			const result = await reloadGt();
+			if (!result.success) {
 				setStartupPhase("error");
-				setStartupError(stopResult.error || stopResult.message || "Failed to stop");
+				setStartupError(result.error || result.message || "Failed to reload");
 				return;
 			}
 
-			// Wait for clean shutdown
-			await new Promise(resolve => setTimeout(resolve, 1500));
-			setStartupPhase("starting");
-
-			// Start
-			const startResult = await startTown();
-			if (!startResult.success) {
-				setStartupPhase("error");
-				setStartupError(startResult.error || startResult.message || "Failed to start");
-				return;
-			}
-
-			setStartupPhase("waiting");
-			// Wait for services to come online
-			await new Promise(resolve => setTimeout(resolve, 2000));
+			// Brief pause for processes to respawn
+			await new Promise(resolve => setTimeout(resolve, 1000));
 			await refetchStatus();
 			setStartupPhase("complete");
 		} catch (err) {
 			setStartupPhase("error");
-			setStartupError(err instanceof Error ? err.message : "Failed to restart");
+			setStartupError(err instanceof Error ? err.message : "Failed to reload");
 		}
 	};
 
