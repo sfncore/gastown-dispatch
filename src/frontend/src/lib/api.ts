@@ -192,6 +192,17 @@ export async function shutdownTown(): Promise<ActionResult> {
 	return fetchJson<ActionResult>("/actions/shutdown", { method: "POST" });
 }
 
+export async function restartTown(): Promise<ActionResult> {
+	// Shutdown first, then start
+	const shutdownResult = await shutdownTown();
+	if (!shutdownResult.success) {
+		return shutdownResult;
+	}
+	// Small delay to ensure clean shutdown
+	await new Promise(resolve => setTimeout(resolve, 1000));
+	return startTown();
+}
+
 export async function slingWork(data: {
 	bead_id: string;
 	rig: string;

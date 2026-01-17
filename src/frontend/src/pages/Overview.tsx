@@ -13,6 +13,9 @@ import {
 	Users,
 	Package,
 	Radio,
+	RotateCw,
+	Loader2,
+	X,
 } from "lucide-react";
 import { getStatus, getConvoys, getBeads, startTown, shutdownTown } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -420,12 +423,173 @@ function AlarmPanel({ agents, rigs }: { agents: AgentRuntime[]; rigs: RigStatus[
 	);
 }
 
+// Startup progress overlay
+type StartupPhase = "idle" | "stopping" | "starting" | "waiting" | "complete" | "error";
+
+function StartupProgressOverlay({
+	isOpen,
+	phase,
+	isRestart,
+	error,
+	onClose
+}: {
+	isOpen: boolean;
+	phase: StartupPhase;
+	isRestart: boolean;
+	error?: string;
+	onClose: () => void;
+}) {
+	if (!isOpen) return null;
+
+	const getPhaseInfo = () => {
+		switch (phase) {
+			case "stopping":
+				return {
+					label: "Stopping Services",
+					description: "Shutting down Gas Town...",
+					progress: 25,
+					color: "text-yellow-400"
+				};
+			case "starting":
+				return {
+					label: "Starting Services",
+					description: "Initializing Gas Town...",
+					progress: isRestart ? 75 : 50,
+					color: "text-blue-400"
+				};
+			case "waiting":
+				return {
+					label: "Waiting for Services",
+					description: "Waiting for deacon to come online...",
+					progress: 90,
+					color: "text-blue-400"
+				};
+			case "complete":
+				return {
+					label: "Complete",
+					description: isRestart ? "Gas Town restarted successfully!" : "Gas Town started successfully!",
+					progress: 100,
+					color: "text-green-400"
+				};
+			case "error":
+				return {
+					label: "Error",
+					description: error || "An error occurred",
+					progress: 0,
+					color: "text-red-400"
+				};
+			default:
+				return {
+					label: "Preparing",
+					description: "Please wait...",
+					progress: 0,
+					color: "text-slate-400"
+				};
+		}
+	};
+
+	const phaseInfo = getPhaseInfo();
+	const isFinished = phase === "complete" || phase === "error";
+
+	return (
+		<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+			<div className="bg-slate-900 border-2 border-slate-600 rounded-xl p-6 w-96 shadow-2xl">
+				{/* Header */}
+				<div className="flex items-center justify-between mb-6">
+					<div className="flex items-center gap-3">
+						{!isFinished ? (
+							<Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+						) : phase === "complete" ? (
+							<CheckCircle2 className="w-6 h-6 text-green-400" />
+						) : (
+							<AlertCircle className="w-6 h-6 text-red-400" />
+						)}
+						<h3 className="text-lg font-bold text-slate-100">
+							{isRestart ? "Restarting Gas Town" : "Starting Gas Town"}
+						</h3>
+					</div>
+					{isFinished && (
+						<button
+							onClick={onClose}
+							className="p-1 hover:bg-slate-700 rounded transition-colors"
+						>
+							<X size={18} className="text-slate-400" />
+						</button>
+					)}
+				</div>
+
+				{/* Progress bar */}
+				<div className="mb-4">
+					<div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+						<div
+							className={cn(
+								"h-full transition-all duration-500 ease-out rounded-full",
+								phase === "error" ? "bg-red-500" :
+								phase === "complete" ? "bg-green-500" : "bg-blue-500"
+							)}
+							style={{ width: `${phaseInfo.progress}%` }}
+						/>
+					</div>
+				</div>
+
+				{/* Phase info */}
+				<div className="text-center">
+					<div className={cn("text-sm font-semibold mb-1", phaseInfo.color)}>
+						{phaseInfo.label}
+					</div>
+					<div className="text-xs text-slate-400">
+						{phaseInfo.description}
+					</div>
+				</div>
+
+				{/* Steps indicator for restart */}
+				{isRestart && !isFinished && (
+					<div className="mt-6 flex items-center justify-center gap-2">
+						<div className={cn(
+							"w-8 h-1 rounded-full transition-colors",
+							["stopping", "starting", "waiting", "complete"].includes(phase)
+								? "bg-blue-500" : "bg-slate-600"
+						)} />
+						<div className={cn(
+							"w-8 h-1 rounded-full transition-colors",
+							["starting", "waiting", "complete"].includes(phase)
+								? "bg-blue-500" : "bg-slate-600"
+						)} />
+						<div className={cn(
+							"w-8 h-1 rounded-full transition-colors",
+							["waiting", "complete"].includes(phase)
+								? "bg-blue-500" : "bg-slate-600"
+						)} />
+					</div>
+				)}
+
+				{/* Close button when finished */}
+				{isFinished && (
+					<button
+						onClick={onClose}
+						className={cn(
+							"w-full mt-6 py-2 rounded-lg font-semibold transition-colors",
+							phase === "complete"
+								? "bg-green-900 hover:bg-green-800 text-green-100 border border-green-700"
+								: "bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600"
+						)}
+					>
+						{phase === "complete" ? "Done" : "Close"}
+					</button>
+				)}
+			</div>
+		</div>
+	);
+}
+
 // Main control panel header
-function ControlHeader({ status, deaconRunning, onRefresh, onStart, onShutdown, isFetching }: {
+function ControlHeader({ status, deaconRunning, onRefresh, onStart, onRestart, onShutdown, isStarting, isFetching }: {
 	status?: TownStatus;
 	deaconRunning: boolean;
 	onRefresh: () => void;
 	onStart: () => void;
+	onRestart: () => void;
+	isStarting: boolean;
 	onShutdown: () => void;
 	isFetching: boolean;
 }) {
@@ -505,7 +669,7 @@ function ControlHeader({ status, deaconRunning, onRefresh, onStart, onShutdown, 
 					<div className="flex items-center gap-2">
 						<button
 							onClick={onRefresh}
-							disabled={isFetching}
+							disabled={isFetching || isStarting}
 							className="p-2 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 transition-colors disabled:opacity-50"
 							title="Refresh"
 						>
@@ -513,19 +677,56 @@ function ControlHeader({ status, deaconRunning, onRefresh, onStart, onShutdown, 
 						</button>
 
 						{deaconRunning ? (
-							<button
-								onClick={onShutdown}
-								className="flex items-center gap-2 px-3 py-2 rounded bg-red-900 hover:bg-red-800 border border-red-700 transition-colors"
-							>
-								<Square size={14} />
-								<span className="text-sm font-bold">STOP</span>
-							</button>
+							<>
+								{/* Restart button when running */}
+								<button
+									onClick={onRestart}
+									disabled={isStarting}
+									className={cn(
+										"flex items-center gap-2 px-3 py-2 rounded border transition-all",
+										"bg-blue-900 hover:bg-blue-800 border-blue-700",
+										"active:scale-95 active:bg-blue-950",
+										isStarting && "opacity-50 cursor-not-allowed"
+									)}
+								>
+									{isStarting ? (
+										<Loader2 size={14} className="animate-spin" />
+									) : (
+										<RotateCw size={14} />
+									)}
+									<span className="text-sm font-bold">RESTART</span>
+								</button>
+								{/* Stop button */}
+								<button
+									onClick={onShutdown}
+									disabled={isStarting}
+									className={cn(
+										"flex items-center gap-2 px-3 py-2 rounded border transition-all",
+										"bg-red-900 hover:bg-red-800 border-red-700",
+										"active:scale-95 active:bg-red-950",
+										isStarting && "opacity-50 cursor-not-allowed"
+									)}
+								>
+									<Square size={14} />
+									<span className="text-sm font-bold">STOP</span>
+								</button>
+							</>
 						) : (
 							<button
 								onClick={onStart}
-								className="flex items-center gap-2 px-3 py-2 rounded bg-green-900 hover:bg-green-800 border border-green-700 transition-colors"
+								disabled={isStarting}
+								className={cn(
+									"flex items-center gap-2 px-3 py-2 rounded border transition-all",
+									"bg-green-900 hover:bg-green-800 border-green-700",
+									"active:scale-95 active:bg-green-950",
+									isStarting && "opacity-50 cursor-not-allowed"
+								)}
 							>
-								<Play size={14} />
+								{isStarting ? (
+									<Loader2 size={14} className="animate-spin" />
+								) : (
+									<Play size={14} />
+								)}
 								<span className="text-sm font-bold">START</span>
 							</button>
 						)}
@@ -708,6 +909,12 @@ export default function Overview() {
 	const navigate = useNavigate();
 	const [showMayorModal, setShowMayorModal] = useState(false);
 
+	// Startup overlay state
+	const [showStartupOverlay, setShowStartupOverlay] = useState(false);
+	const [startupPhase, setStartupPhase] = useState<StartupPhase>("idle");
+	const [startupError, setStartupError] = useState<string | undefined>();
+	const [isRestartOperation, setIsRestartOperation] = useState(false);
+
 	const {
 		data: statusResponse,
 		isLoading: statusLoading,
@@ -801,8 +1008,71 @@ export default function Overview() {
 	}, [currentMetrics, statusResponse?.initialized]);
 
 	const handleStart = async () => {
-		await startTown();
-		refetchStatus();
+		setShowStartupOverlay(true);
+		setIsRestartOperation(false);
+		setStartupPhase("starting");
+		setStartupError(undefined);
+
+		try {
+			const result = await startTown();
+			if (!result.success) {
+				setStartupPhase("error");
+				setStartupError(result.error || result.message || "Failed to start");
+				return;
+			}
+			setStartupPhase("waiting");
+			// Wait a bit for services to come online, then refetch
+			await new Promise(resolve => setTimeout(resolve, 2000));
+			await refetchStatus();
+			setStartupPhase("complete");
+		} catch (err) {
+			setStartupPhase("error");
+			setStartupError(err instanceof Error ? err.message : "Failed to start");
+		}
+	};
+
+	const handleRestart = async () => {
+		setShowStartupOverlay(true);
+		setIsRestartOperation(true);
+		setStartupPhase("stopping");
+		setStartupError(undefined);
+
+		try {
+			// Stop first
+			const stopResult = await shutdownTown();
+			if (!stopResult.success) {
+				setStartupPhase("error");
+				setStartupError(stopResult.error || stopResult.message || "Failed to stop");
+				return;
+			}
+
+			// Wait for clean shutdown
+			await new Promise(resolve => setTimeout(resolve, 1500));
+			setStartupPhase("starting");
+
+			// Start
+			const startResult = await startTown();
+			if (!startResult.success) {
+				setStartupPhase("error");
+				setStartupError(startResult.error || startResult.message || "Failed to start");
+				return;
+			}
+
+			setStartupPhase("waiting");
+			// Wait for services to come online
+			await new Promise(resolve => setTimeout(resolve, 2000));
+			await refetchStatus();
+			setStartupPhase("complete");
+		} catch (err) {
+			setStartupPhase("error");
+			setStartupError(err instanceof Error ? err.message : "Failed to restart");
+		}
+	};
+
+	const handleCloseStartupOverlay = () => {
+		setShowStartupOverlay(false);
+		setStartupPhase("idle");
+		setStartupError(undefined);
 	};
 
 	const handleShutdown = async () => {
@@ -811,6 +1081,8 @@ export default function Overview() {
 			refetchStatus();
 		}
 	};
+
+	const isStarting = showStartupOverlay && startupPhase !== "complete" && startupPhase !== "error";
 
 
 	// Determine if we have a valid connection - must be before conditional returns
@@ -853,8 +1125,17 @@ export default function Overview() {
 					deaconRunning={false}
 					onRefresh={() => refetchStatus()}
 					onStart={handleStart}
+					onRestart={handleRestart}
 					onShutdown={handleShutdown}
+					isStarting={isStarting}
 					isFetching={isFetching}
+				/>
+				<StartupProgressOverlay
+					isOpen={showStartupOverlay}
+					phase={startupPhase}
+					isRestart={isRestartOperation}
+					error={startupError}
+					onClose={handleCloseStartupOverlay}
 				/>
 				<div className="flex-1 flex items-center justify-center">
 					<div className="flex flex-col items-center gap-4 text-center">
@@ -869,9 +1150,19 @@ export default function Overview() {
 						</p>
 						<button
 							onClick={handleStart}
-							className="flex items-center gap-2 px-6 py-3 rounded-lg bg-green-900 hover:bg-green-800 border border-green-700 transition-colors mt-4"
+							disabled={isStarting}
+							className={cn(
+								"flex items-center gap-2 px-6 py-3 rounded-lg border transition-all mt-4",
+								"bg-green-900 hover:bg-green-800 border-green-700",
+								"active:scale-95 active:bg-green-950",
+								isStarting && "opacity-50 cursor-not-allowed"
+							)}
 						>
-							<Play size={20} />
+							{isStarting ? (
+								<Loader2 size={20} className="animate-spin" />
+							) : (
+								<Play size={20} />
+							)}
 							<span className="font-bold">START GAS TOWN</span>
 						</button>
 					</div>
@@ -888,7 +1179,9 @@ export default function Overview() {
 				deaconRunning={deaconRunning}
 				onRefresh={() => refetchStatus()}
 				onStart={handleStart}
+				onRestart={handleRestart}
 				onShutdown={handleShutdown}
+				isStarting={isStarting}
 				isFetching={isFetching}
 			/>
 
@@ -988,6 +1281,15 @@ export default function Overview() {
 			{showMayorModal && (
 				<MayorDispatchModal onClose={() => setShowMayorModal(false)} />
 			)}
+
+			{/* Startup Progress Overlay */}
+			<StartupProgressOverlay
+				isOpen={showStartupOverlay}
+				phase={startupPhase}
+				isRestart={isRestartOperation}
+				error={startupError}
+				onClose={handleCloseStartupOverlay}
+			/>
 		</div>
 	);
 }
