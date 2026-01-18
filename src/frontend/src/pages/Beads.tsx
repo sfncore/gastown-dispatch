@@ -38,7 +38,7 @@ import {
   getPriorityLabel,
   getPriorityColor,
 } from "@/lib/utils";
-import type { BeadFilters, Bead, BeadDependency, BeadComment } from "@/types/api";
+import type { BeadFilters, Bead } from "@/types/api";
 
 export default function Beads() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -400,6 +400,10 @@ function BeadDetail({
       setNewDependency("");
       setShowAddDependency(false);
     },
+    onError: (error: Error) => {
+      // Error will be displayed in the UI via mutation.error
+      console.error("Failed to add dependency:", error);
+    },
   });
 
   const removeDependencyMutation = useMutation({
@@ -656,28 +660,80 @@ function BeadDetail({
           </div>
 
           {showAddDependency && (
-            <div className="mb-3 flex gap-2">
-              <input
-                type="text"
-                value={newDependency}
-                onChange={(e) => setNewDependency(e.target.value)}
-                placeholder="Enter bead ID (e.g., gtdispat-123)"
-                className="flex-1 px-3 py-2 text-sm bg-gt-background border border-gt-border rounded-lg focus:outline-none focus:ring-2 focus:ring-gt-accent"
-              />
-              <button
-                onClick={() => {
-                  if (bead && newDependency) {
-                    addDependencyMutation.mutate({
-                      id: bead.id,
-                      dependsOn: newDependency,
-                    });
+            <div className="mb-3">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newDependency}
+                  onChange={(e) => setNewDependency(e.target.value)}
+                  placeholder="Enter bead ID (e.g., gtdispat-123)"
+                  className="flex-1 px-3 py-2 text-sm bg-gt-background border border-gt-border rounded-lg focus:outline-none focus:ring-2 focus:ring-gt-accent"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && bead && newDependency) {
+                      const trimmedDep = newDependency.trim();
+                      // Validate before submitting
+                      if (trimmedDep === bead.id) {
+                        return; // Prevent self-dependency
+                      }
+                      const alreadyAdded = dependencies?.blocked_by?.some(
+                        (dep) => dep.id === trimmedDep
+                      );
+                      if (alreadyAdded) {
+                        return; // Prevent duplicate
+                      }
+                      addDependencyMutation.mutate({
+                        id: bead.id,
+                        dependsOn: trimmedDep,
+                      });
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    if (bead && newDependency) {
+                      const trimmedDep = newDependency.trim();
+                      // Validate before submitting
+                      if (trimmedDep === bead.id) {
+                        return; // Prevent self-dependency
+                      }
+                      const alreadyAdded = dependencies?.blocked_by?.some(
+                        (dep) => dep.id === trimmedDep
+                      );
+                      if (alreadyAdded) {
+                        return; // Prevent duplicate
+                      }
+                      addDependencyMutation.mutate({
+                        id: bead.id,
+                        dependsOn: trimmedDep,
+                      });
+                    }
+                  }}
+                  disabled={
+                    !newDependency ||
+                    addDependencyMutation.isPending ||
+                    newDependency.trim() === bead?.id ||
+                    dependencies?.blocked_by?.some((dep) => dep.id === newDependency.trim())
                   }
-                }}
-                disabled={!newDependency || addDependencyMutation.isPending}
-                className="px-3 py-2 text-sm rounded-lg bg-gt-accent text-black hover:bg-gt-accent/90 transition-colors disabled:opacity-50"
-              >
-                Add
-              </button>
+                  className="px-3 py-2 text-sm rounded-lg bg-gt-accent text-black hover:bg-gt-accent/90 transition-colors disabled:opacity-50"
+                >
+                  Add
+                </button>
+              </div>
+              {newDependency.trim() === bead?.id && (
+                <p className="text-xs text-red-400 mt-1">
+                  Cannot add dependency on itself
+                </p>
+              )}
+              {newDependency.trim() && dependencies?.blocked_by?.some((dep) => dep.id === newDependency.trim()) && (
+                <p className="text-xs text-yellow-400 mt-1">
+                  This dependency already exists
+                </p>
+              )}
+              {addDependencyMutation.error && (
+                <p className="text-xs text-red-400 mt-1">
+                  {addDependencyMutation.error.message}
+                </p>
+              )}
             </div>
           )}
 
