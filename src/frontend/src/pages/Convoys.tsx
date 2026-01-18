@@ -592,7 +592,11 @@ function ConvoyDetailPanel({
 	});
 
 	// Fetch available issues for adding
-	const { data: availableIssues } = useQuery({
+	// REGRESSION FIX (gtdispat-cc0w): Track loading state to show spinner while fetching
+	// BUG: Previously showed "No matching issues found" immediately while loading
+	// ROOT CAUSE: Query loading state wasn't tracked, so availableIssues was undefined
+	// FIX: Added isLoadingAvailableIssues to properly display loading spinner
+	const { data: availableIssues, isLoading: isLoadingAvailableIssues } = useQuery({
 		queryKey: ["beads", "open"],
 		queryFn: () => getBeads({ status: "open" }),
 		enabled: showAddIssues,
@@ -813,7 +817,12 @@ function ConvoyDetailPanel({
 
 					{/* Issue list */}
 					<div className="max-h-40 overflow-auto border border-gt-border rounded-lg mb-3 bg-gt-surface">
-						{filteredAddIssues && filteredAddIssues.length > 0 ? (
+						{isLoadingAvailableIssues ? (
+							<div className="p-4 text-center text-gt-muted">
+								<RefreshCw className="animate-spin mx-auto mb-2" size={20} />
+								Loading issues...
+							</div>
+						) : filteredAddIssues && filteredAddIssues.length > 0 ? (
 							<div className="divide-y divide-gt-border">
 								{filteredAddIssues.slice(0, 20).map((issue) => (
 									<button
