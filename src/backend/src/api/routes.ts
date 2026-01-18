@@ -22,6 +22,10 @@ import {
 	createBead,
 	updateBeadStatus,
 	closeBead,
+	updateBeadPriority,
+	assignBead,
+	unassignBead,
+	deleteBead,
 	listRigBeads,
 	getAllRigBeads,
 	getBeadDependencies,
@@ -310,6 +314,38 @@ router.post(
 	asyncHandler(async (req, res) => {
 		const { reason } = req.body;
 		const result = await closeBead(req.params.id, reason, getTownRoot(req));
+		res.json(result);
+	}),
+);
+
+router.patch(
+	"/beads/:id/priority",
+	asyncHandler(async (req, res) => {
+		const { priority } = req.body;
+		const result = await updateBeadPriority(
+			req.params.id,
+			priority,
+			getTownRoot(req),
+		);
+		res.json(result);
+	}),
+);
+
+router.patch(
+	"/beads/:id/assignee",
+	asyncHandler(async (req, res) => {
+		const { assignee } = req.body;
+		const result = assignee
+			? await assignBead(req.params.id, assignee, getTownRoot(req))
+			: await unassignBead(req.params.id, getTownRoot(req));
+		res.json(result);
+	}),
+);
+
+router.delete(
+	"/beads/:id",
+	asyncHandler(async (req, res) => {
+		const result = await deleteBead(req.params.id, getTownRoot(req));
 		res.json(result);
 	}),
 );

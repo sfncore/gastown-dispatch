@@ -185,6 +185,32 @@ export async function closeBead(
 	});
 }
 
+export async function updateBeadPriority(
+	id: string,
+	priority: number,
+): Promise<ActionResult> {
+	return fetchJson<ActionResult>(`/beads/${encodeURIComponent(id)}/priority`, {
+		method: "PATCH",
+		body: JSON.stringify({ priority }),
+	});
+}
+
+export async function assignBead(
+	id: string,
+	assignee: string | null,
+): Promise<ActionResult> {
+	return fetchJson<ActionResult>(`/beads/${encodeURIComponent(id)}/assignee`, {
+		method: "PATCH",
+		body: JSON.stringify({ assignee }),
+	});
+}
+
+export async function deleteBead(id: string): Promise<ActionResult> {
+	return fetchJson<ActionResult>(`/beads/${encodeURIComponent(id)}`, {
+		method: "DELETE",
+	});
+}
+
 // Bead Dependencies
 export async function getBeadDependencies(
 	id: string,

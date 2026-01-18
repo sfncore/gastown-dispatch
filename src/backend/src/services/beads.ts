@@ -144,6 +144,96 @@ export async function closeBead(
 	};
 }
 
+export async function updateBeadPriority(
+	beadId: string,
+	priority: number,
+	townRoot?: string,
+): Promise<ActionResult> {
+	const result = await runBd(["update", beadId, `--priority=${priority}`], {
+		cwd: townRoot,
+	});
+
+	if (result.exitCode !== 0) {
+		return {
+			success: false,
+			message: "Failed to update bead priority",
+			error: result.stderr,
+		};
+	}
+
+	return {
+		success: true,
+		message: `Updated ${beadId} priority to P${priority}`,
+	};
+}
+
+export async function assignBead(
+	beadId: string,
+	assignee: string,
+	townRoot?: string,
+): Promise<ActionResult> {
+	const result = await runBd(["update", beadId, `--assignee=${assignee}`], {
+		cwd: townRoot,
+	});
+
+	if (result.exitCode !== 0) {
+		return {
+			success: false,
+			message: "Failed to assign bead",
+			error: result.stderr,
+		};
+	}
+
+	return {
+		success: true,
+		message: `Assigned ${beadId} to ${assignee}`,
+	};
+}
+
+export async function unassignBead(
+	beadId: string,
+	townRoot?: string,
+): Promise<ActionResult> {
+	const result = await runBd(["update", beadId, "--assignee="], {
+		cwd: townRoot,
+	});
+
+	if (result.exitCode !== 0) {
+		return {
+			success: false,
+			message: "Failed to unassign bead",
+			error: result.stderr,
+		};
+	}
+
+	return {
+		success: true,
+		message: `Unassigned ${beadId}`,
+	};
+}
+
+export async function deleteBead(
+	beadId: string,
+	townRoot?: string,
+): Promise<ActionResult> {
+	const result = await runBd(["delete", beadId], {
+		cwd: townRoot,
+	});
+
+	if (result.exitCode !== 0) {
+		return {
+			success: false,
+			message: "Failed to delete bead",
+			error: result.stderr,
+		};
+	}
+
+	return {
+		success: true,
+		message: `Deleted bead: ${beadId}`,
+	};
+}
+
 export async function listRigBeads(
 	rigName: string,
 	filters: BeadFilters = {},
