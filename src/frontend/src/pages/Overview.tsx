@@ -931,24 +931,28 @@ export default function Overview() {
 	} = useQuery({
 		queryKey: ["status"],
 		queryFn: getStatus,
-		refetchInterval: 5_000,
-		retry: 1,
-	});
-
-	const { data: convoys = [] } = useQuery({
-		queryKey: ["convoys", "open"],
-		queryFn: () => getConvoys("open"),
-		refetchInterval: 30_000, // SSE handles real-time, this is fallback
+		refetchInterval: 15_000, // Reduced from 5s to 15s
+		staleTime: 10_000, // Keep data fresh for 10s
 		retry: 1,
 	});
 
 	// Real-time convoy updates via SSE
 	const { connected: sseConnected } = useConvoySubscription({ enabled: true });
 
+	const { data: convoys = [] } = useQuery({
+		queryKey: ["convoys", "open"],
+		queryFn: () => getConvoys("open"),
+		// Disable polling when SSE is connected, fallback to 60s when disconnected
+		refetchInterval: sseConnected ? false : 60_000,
+		staleTime: 30_000, // Keep data fresh for 30s
+		retry: 1,
+	});
+
 	const { data: beads = [] } = useQuery({
 		queryKey: ["beads"],
 		queryFn: () => getBeads({ limit: 100 }),
-		refetchInterval: 10_000,
+		refetchInterval: 30_000, // Reduced from 10s to 30s
+		staleTime: 20_000, // Keep data fresh for 20s
 		retry: 1,
 	});
 

@@ -297,7 +297,8 @@ function SynthesisPanel({
 		queryKey: ["synthesis-status", detail.id],
 		queryFn: () => getSynthesisStatus(detail.id),
 		enabled: detail.status === "open" && needsSynthesis,
-		refetchInterval: 10_000,
+		refetchInterval: 30_000, // Reduced from 10s to 30s
+		staleTime: 20_000, // Keep data fresh for 20s
 	});
 
 	const incompleteLegCount = synthesisStatus?.incomplete_legs?.length ?? 0;
@@ -318,7 +319,7 @@ function SynthesisPanel({
 
 	// Simple tracking convoy (no synthesis needed)
 	if (!needsSynthesis) {
-		const allComplete = detail.total > 0 && detail.completed === detail.total;
+		const allComplete = (detail.total ?? 0) > 0 && detail.completed === detail.total;
 
 		return (
 			<div
@@ -585,7 +586,9 @@ function ConvoyDetailPanel({
 	} = useQuery({
 		queryKey: ["convoy-detail", convoyId],
 		queryFn: () => getConvoyDetail(convoyId),
-		refetchInterval: 5_000,
+		// SSE handles real-time updates, so polling can be much slower
+		refetchInterval: 30_000, // Reduced from 5s to 30s
+		staleTime: 20_000, // Keep data fresh for 20s
 	});
 
 	// Fetch available issues for adding
@@ -1252,7 +1255,7 @@ export default function Convoys() {
 	const [showCreateModal, setShowCreateModal] = useState(false);
 
 	// SSE subscription for real-time updates
-	useConvoySubscription({ enabled: true });
+	const { connected: sseConnected } = useConvoySubscription({ enabled: true });
 
 	const {
 		data: convoys,
@@ -1263,7 +1266,10 @@ export default function Convoys() {
 	} = useQuery({
 		queryKey: ["convoys"],
 		queryFn: () => getConvoys(),
-		refetchInterval: 30_000, // Reduce polling since SSE handles updates
+		// Disable polling when SSE is connected, fallback to 60s when disconnected
+		refetchInterval: sseConnected ? false : 60_000,
+		staleTime: 30_000, // Keep data fresh for 30s
+		retry: 1,
 	});
 
 	if (isLoading) {

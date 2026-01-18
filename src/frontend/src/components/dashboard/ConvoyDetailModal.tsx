@@ -249,7 +249,8 @@ function SynthesisPanel({
 		queryKey: ["synthesis-status", detail.id],
 		queryFn: () => getSynthesisStatus(detail.id),
 		enabled: detail.status === "open" && needsSynthesis,
-		refetchInterval: 10_000,
+		refetchInterval: 30_000, // Reduced from 10s to 30s
+		staleTime: 20_000, // Keep data fresh for 20s
 	});
 
 	// Only show for formula-driven convoys that aren't closed
@@ -362,9 +363,9 @@ export function ConvoyDetailModal({ convoyId, onClose, initialData }: ConvoyDeta
 		queryKey: ["convoy-detail", convoyId],
 		queryFn: () => getConvoyDetail(convoyId),
 		initialData,
-		// Show stale data immediately while refetching in background
-		staleTime: 0,
-		refetchInterval: 5_000,
+		// SSE handles real-time updates, so polling can be much slower
+		staleTime: 20_000, // Keep data fresh for 20s
+		refetchInterval: 30_000, // Reduced from 5s to 30s
 	});
 
 	const closeMutation = useMutation({
