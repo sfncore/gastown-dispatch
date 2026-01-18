@@ -1,5 +1,12 @@
 import { runBdJson, runBd } from "../commands/runner.js";
-import type { Bead, BeadFilters, ActionResult } from "../types/gasown.js";
+import type {
+	Bead,
+	BeadFilters,
+	ActionResult,
+	BeadDetail,
+	DependencyInfo,
+	Comment,
+} from "../types/gasown.js";
 
 export async function listBeads(
 	filters: BeadFilters = {},
@@ -305,4 +312,110 @@ export async function addBeadComment(
 		success: true,
 		message: "Comment added",
 	};
+}
+
+// =====================
+// Enhanced Bead Detail
+// =====================
+
+/**
+ * Get full bead detail with dependencies and comments
+ */
+export async function getBeadDetail(
+	beadId: string,
+	townRoot?: string,
+): Promise<BeadDetail> {
+	// Get basic bead info
+	const bead = await getBead(beadId, townRoot);
+
+	// Get dependencies
+	const deps = await getBeadDependencies(beadId, townRoot);
+
+	// Get comments
+	const comments = await getBeadComments(beadId, townRoot);
+
+	// Convert BeadDependency to DependencyInfo format
+	const blocks: DependencyInfo[] = deps.blocks.map((dep) => ({
+		...dep,
+		direction: "blocks" as const,
+	}));
+
+	const blocked_by: DependencyInfo[] = deps.blocked_by.map((dep) => ({
+		...dep,
+		direction: "blocked_by" as const,
+	}));
+
+	// Convert BeadComment to Comment format
+	const formattedComments: Comment[] = comments.map((c) => ({
+		id: c.id,
+		author: c.author,
+		content: c.body,
+		created_at: c.created_at,
+	}));
+
+	return {
+		...bead,
+		blocks,
+		blocked_by,
+		comments: formattedComments,
+	};
+}
+
+/**
+ * Update bead fields (status, priority, assignee, etc.)
+ */
+export async function updateBead(
+	beadId: string,
+	updates: {
+		status?: string;
+		priority?: number;
+		assignee?: string;
+		title?: string;
+		description?: string;
+	},
+	townRoot?: string,
+): Promise<ActionResult> {
+	const args = ["update", beadId];
+
+	if (updates.status) {
+		args.push(`--status=${updates.status}`);
+	}
+	if (updates.priority !== undefined) {
+		args.push(`--priority=${updates.priority}`);
+	}
+	if (updates.assignee) {
+		args.push(`--assignee=${updates.assignee}`);
+	}
+	if (updates.title) {
+		args.push(`--title=${updates.title}`);
+	}
+	if (updates.description) {
+		args.push(`--description=${updates.description}`);
+	}
+
+	const result = await runBd(args, { cwd: townRoot });
+
+	if (result.exitCode !== 0) {
+		return {
+			success: false,
+			message: "Failed to update bead",
+			error: result.stderr,
+		};
+	}
+
+	return {
+		success: true,
+		message: `Updated bead: ${beadId}`,
+	};
+}
+
+/**
+ * Assign a bead to a user/agent
+ */
+export async function assignBead(
+	beadId: string,
+	assignee: string,
+	townRoot?: string,
+): Promise<ActionResult> {
+	return updateBead(beadId, { assignee }, townRoot);
 }
