@@ -180,6 +180,27 @@ test("REGRESSION: empty input causes crash", () => {
 ```
 **Why**: Regression tests prevent AI agents from making the same mistake again. They capture the exact scenario that caused the bug and ensure it stays fixed forever.
 See skill: `regression-testing` for detailed patterns and examples.
+### Frontend Testing Requirements
+**When completing ANY frontend work, you MUST test in browser. No exceptions.**
+
+Before marking frontend work as complete:
+
+1. **Start dev server**: `npm run dev` (runs both frontend:3000 and backend:3001)
+2. **Open in browser**: Use OpenCode's browser feature to open `http://localhost:3001`
+3. **Test visually**: Verify all changes work as expected
+4. **Check console**: Look for errors in browser console
+5. **Test interactions**: Click buttons, fill forms, check navigation
+6. **Take screenshots**: If changes are visual, capture before/after
+7. **Document issues**: Create new beads for any bugs found
+
+**Why browser testing matters:**
+- Catches runtime issues that tests miss
+- Verifies visual design and layout
+- Ensures user experience is correct
+- Reduces back-and-forth in PR reviews
+- Screenshots provide visual proof of completion
+
+**CRITICAL**: Frontend work is NOT complete until browser-tested. This prevents shipping broken UIs and ensures quality before PR creation.
 ### Safety & Linting
 - **ALWAYS run linters before committing.** Fix all errors, not just warnings.
 - Before finishing a code change: run the project's lint/typecheck/tests commands.
