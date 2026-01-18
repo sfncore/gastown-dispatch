@@ -112,10 +112,54 @@ export async function updateBeadStatus(
 		};
 	}
 
+	// When starting work, also sling to spawn a polecat
+	if (status === "in_progress") {
+		const rig = await detectRigFromPath(townRoot);
+		if (rig) {
+			const { runGt } = await import("../commands/runner.js");
+			const slingResult = await runGt(["sling", beadId, rig], {
+				cwd: townRoot,
+			});
+
+			if (slingResult.exitCode !== 0) {
+				return {
+					success: false,
+					message: `Updated status but failed to sling work: ${slingResult.stderr}`,
+					error: slingResult.stderr,
+				};
+			}
+
+			return {
+				success: true,
+				message: `Started work on ${beadId} - polecat spawned in ${rig}`,
+			};
+		}
+	}
+
 	return {
 		success: true,
 		message: `Updated ${beadId} status to ${status}`,
 	};
+}
+
+async function detectRigFromPath(townRoot?: string): Promise<string | null> {
+	const path = await import("path");
+	const actualRoot = townRoot || process.env.GT_TOWN_ROOT || `${process.env.HOME}/gt`;
+	
+	// Extract rig name from path
+	// Path format: /home/ubuntu/gt/<rig>/...
+	const parts = actualRoot.split(path.sep);
+	const gtIndex = parts.indexOf("gt");
+	
+	if (gtIndex !== -1 && gtIndex + 1 < parts.length) {
+		const rigName = parts[gtIndex + 1];
+		// Filter out polecat subdirectories
+		if (rigName && rigName !== "polecats") {
+			return rigName;
+		}
+	}
+	
+	return null;
 }
 
 export async function closeBead(
