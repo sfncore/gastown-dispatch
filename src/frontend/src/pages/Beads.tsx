@@ -35,10 +35,9 @@ import {
   cn,
   formatRelativeTime,
   getStatusColor,
-  getPriorityLabel,
-  getPriorityColor,
 } from "@/lib/utils";
-import type { BeadFilters, Bead, BeadDependency, BeadComment } from "@/types/api";
+import { BeadCard, EmptyDetailState, PriorityBadge } from "@/components/beads";
+import type { BeadFilters, Bead } from "@/types/api";
 
 export default function Beads() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -232,7 +231,7 @@ export default function Beads() {
       {/* Master-Detail Layout */}
       <div className="flex flex-1 overflow-hidden">
         {/* Master List */}
-        <div className="w-1/3 border-r border-gt-border overflow-y-auto">
+        <div className="w-80 border-r border-gt-border overflow-y-auto">
           {!beads || beads.length === 0 ? (
             <div className="p-8 text-center">
               <CircleDot className="mx-auto text-gt-muted mb-4" size={48} />
@@ -246,57 +245,12 @@ export default function Beads() {
           ) : (
             <div className="divide-y divide-gt-border">
               {beads.map((bead) => (
-                <div
+                <BeadCard
                   key={bead.id}
+                  bead={bead}
+                  isSelected={selectedBeadId === bead.id}
                   onClick={() => setSelectedBeadId(bead.id)}
-                  className={cn(
-                    "p-4 cursor-pointer transition-colors hover:bg-gt-surface/50",
-                    selectedBeadId === bead.id && "bg-gt-surface border-l-2 border-gt-accent"
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <CircleDot
-                      className={cn("mt-1 flex-shrink-0", getStatusColor(bead.status))}
-                      size={16}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium truncate">{bead.title}</h3>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-gt-muted flex-wrap">
-                        <span className="font-mono">{bead.id}</span>
-                        <span>·</span>
-                        <span className={cn("font-medium", getPriorityColor(bead.priority))}>
-                          {getPriorityLabel(bead.priority)}
-                        </span>
-                        <span>·</span>
-                        <span className="capitalize">{bead.type}</span>
-                      </div>
-                      {bead.labels && bead.labels.length > 0 && (
-                        <div className="flex items-center gap-1 mt-2 flex-wrap">
-                          {bead.labels.map((label) => (
-                            <span
-                              key={label}
-                              className="px-2 py-0.5 text-xs bg-gt-border rounded-full"
-                            >
-                              {label}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <div className="flex items-center gap-3 mt-2 text-xs text-gt-muted">
-                        {bead.assignee && (
-                          <span className="flex items-center gap-1">
-                            <User size={12} />
-                            {bead.assignee}
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1">
-                          <Clock size={12} />
-                          {formatRelativeTime(bead.updated_at || bead.created_at)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                />
               ))}
             </div>
           )}
@@ -313,9 +267,7 @@ export default function Beads() {
               onRefresh={() => queryClient.invalidateQueries({ queryKey: ["bead", selectedBeadId] })}
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-gt-muted">
-              <p>Select a bead to view details</p>
-            </div>
+            <EmptyDetailState />
           )}
         </div>
       </div>
@@ -472,9 +424,7 @@ function BeadDetail({
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-sm text-gt-muted">{bead.id}</span>
-                <span className={cn("text-xs font-medium uppercase px-2 py-0.5 rounded-full", getPriorityColor(bead.priority))}>
-                  {getPriorityLabel(bead.priority)}
-                </span>
+                <PriorityBadge priority={bead.priority} />
                 <span className="text-xs uppercase px-2 py-0.5 rounded-full bg-gt-border">
                   {bead.type}
                 </span>
