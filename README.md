@@ -92,6 +92,20 @@ npm run lint      # Linting
 npm run build     # Production build
 ```
 
+### E2E Testing
+
+Screenshot tests and smoke tests using Playwright:
+
+```bash
+npm run test:e2e           # Run all E2E tests
+npm run test:e2e:ui        # Interactive UI mode
+npm run test:e2e:headed    # Run with visible browser
+npm run test:e2e:debug     # Debug mode
+npm run test:e2e:update    # Update screenshot baselines
+```
+
+See [e2e/README.md](e2e/README.md) for detailed testing documentation.
+
 ## API Endpoints
 
 ### Status

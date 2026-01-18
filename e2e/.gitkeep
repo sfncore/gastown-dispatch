@@ -1,0 +1,7 @@
+# E2E Test Directory
+
+Screenshot baselines should be committed to the repository.
+They will be stored in subdirectories created by Playwright:
+- chromium/ (browser-specific screenshots)
+
+These baselines are essential for visual regression testing.
