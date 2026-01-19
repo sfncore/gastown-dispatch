@@ -29,6 +29,9 @@ import {
 	removeBeadDependency,
 	getBeadComments,
 	addBeadComment,
+	getBeadDetail,
+	updateBead,
+	assignBead,
 } from "../services/beads.js";
 import {
 	startTown,
@@ -271,6 +274,15 @@ router.get(
 	}),
 );
 
+// Enhanced bead detail endpoint
+router.get(
+	"/beads/:id/detail",
+	asyncHandler(async (req, res) => {
+		const detail = await getBeadDetail(req.params.id, getTownRoot(req));
+		res.json(detail);
+	}),
+);
+
 router.get(
 	"/beads/:id",
 	asyncHandler(async (req, res) => {
@@ -314,9 +326,42 @@ router.post(
 	}),
 );
 
+// Update bead fields
+router.put(
+	"/beads/:id",
+	asyncHandler(async (req, res) => {
+		const { status, priority, assignee, title, description } = req.body;
+		const result = await updateBead(
+			req.params.id,
+			{ status, priority, assignee, title, description },
+			getTownRoot(req),
+		);
+		res.json(result);
+	}),
+);
+
+// Assign bead to user/agent
+router.post(
+	"/beads/:id/assign",
+	asyncHandler(async (req, res) => {
+		const { assignee } = req.body as { assignee: string };
+		const result = await assignBead(req.params.id, assignee, getTownRoot(req));
+		res.json(result);
+	}),
+);
+
 // Dependencies
 router.get(
 	"/beads/:id/dependencies",
+	asyncHandler(async (req, res) => {
+		const deps = await getBeadDependencies(req.params.id, getTownRoot(req));
+		res.json(deps);
+	}),
+);
+
+// Shorter alias for dependencies
+router.get(
+	"/beads/:id/deps",
 	asyncHandler(async (req, res) => {
 		const deps = await getBeadDependencies(req.params.id, getTownRoot(req));
 		res.json(deps);
@@ -336,12 +381,39 @@ router.post(
 	}),
 );
 
+// Shorter alias for adding dependencies
+router.post(
+	"/beads/:id/deps",
+	asyncHandler(async (req, res) => {
+		const { depends_on } = req.body as { depends_on: string };
+		const result = await addBeadDependency(
+			req.params.id,
+			depends_on,
+			getTownRoot(req),
+		);
+		res.json(result);
+	}),
+);
+
 router.delete(
 	"/beads/:id/dependencies/:dependsOn",
 	asyncHandler(async (req, res) => {
 		const result = await removeBeadDependency(
 			req.params.id,
 			req.params.dependsOn,
+			getTownRoot(req),
+		);
+		res.json(result);
+	}),
+);
+
+// Shorter alias for removing dependencies
+router.delete(
+	"/beads/:id/deps/:depId",
+	asyncHandler(async (req, res) => {
+		const result = await removeBeadDependency(
+			req.params.id,
+			req.params.depId,
 			getTownRoot(req),
 		);
 		res.json(result);
